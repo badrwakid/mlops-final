@@ -1,0 +1,55 @@
+﻿paths:
+  raw_csv: data/raw/hour.csv
+  processed: data/processed/bike_clean.parquet
+  train: data/splits/train.parquet
+  test: data/splits/test.parquet
+  reference: data/splits/reference.parquet
+  production: data/splits/production.parquet
+  preprocessor: data/splits/preprocessor.pkl
+  model: data/splits/model.pkl
+  metrics: data/splits/metrics.json
+
+data:
+  target: cnt
+  drop_columns: [instant, dteday, casual, registered]
+  numeric_features: [temp, atemp, hum, windspeed, hr, mnth]
+  categorical_features: [season, holiday, workingday, weathersit, weekday]
+  split_column: yr
+  test_size: 0.2
+  reference_holdout: 0.10
+  random_state: 42
+
+preprocessing:
+  numeric_imputer_strategy: median
+  categorical_imputer_strategy: most_frequent
+  feature_selection_k: 12
+
+training:
+  model_type: random_forest
+  n_trials: 20
+  cv_folds: 3
+  hpo_search_space:
+    n_estimators: [100, 200, 400]
+    max_depth: [4, 8, 16, null]
+    min_samples_leaf: [1, 2, 4]
+
+drift:
+  perturb_temp_factor: 1.10
+  perturb_hum_factor: 0.85
+  perturb_windspeed_noise_std: 0.05
+  drift_threshold_share: 0.20
+  perturbed_features: [temp, hum, windspeed]
+
+serving:
+  model_name: bike_share_regressor
+  model_stage: Production
+  api_host: 0.0.0.0
+  api_port: 8000
+
+mlflow:
+  tracking_uri: http://localhost:5000
+  experiment_name: bike_sharing
+  registered_model_name: bike_share_regressor
+
+validation:
+  min_test_r2: 0.70

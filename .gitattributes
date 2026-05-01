@@ -1,0 +1,5 @@
+﻿* text=auto eol=lf
+*.csv binary
+*.parquet binary
+*.pkl binary
+*.joblib binary

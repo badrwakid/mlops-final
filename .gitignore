@@ -1,0 +1,44 @@
+﻿# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.pytest_cache/
+.coverage
+htmlcov/
+.ruff_cache/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Data — DVC-tracked, never to Git
+data/raw/*
+!data/raw/.gitkeep
+!data/raw/*.dvc
+data/processed/*
+!data/processed/.gitkeep
+!data/processed/*.dvc
+data/splits/*
+!data/splits/.gitkeep
+!data/splits/*.dvc
+
+# Models & artifacts
+*.pkl
+*.joblib
+mlruns/
+mlflow.db
+dvc-storage/
+
+# Generated reports
+monitoring/evidently_reports/*.html
+
+# IDE
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# Prefect
+.prefect/
