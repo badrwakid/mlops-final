@@ -23,3 +23,14 @@
       - data/splits/test.parquet
       - data/splits/reference.parquet
       - data/splits/production.parquet
+
+  featurize:
+    cmd: python -m src.features.featurize
+    deps:
+      - data/splits/train.parquet
+      - src/features/featurize.py
+      - src/features/preprocessor.py
+      - src/config.py
+      - configs/params.yaml
+    outs:
+      - data/splits/preprocessor.pkl
