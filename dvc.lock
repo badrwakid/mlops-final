@@ -1,0 +1,70 @@
+schema: '2.0'
+stages:
+  prepare:
+    cmd: python -m src.data.prepare
+    deps:
+    - path: configs/params.yaml
+      hash: md5
+      md5: d49ed3ffeca47852985a5f18067cee09
+      size: 1393
+    - path: data/raw/hour.csv
+      hash: md5
+      md5: d50bd5a6f55131e72a7bedc334e2fce1
+      size: 1156736
+    - path: src/config.py
+      hash: md5
+      md5: a675cc46c728bc268212d0910aa70131
+      size: 1715
+    - path: src/data/load.py
+      hash: md5
+      md5: d66cc41e0ff4d0e0a12b7346dfc2e04a
+      size: 226
+    - path: src/data/prepare.py
+      hash: md5
+      md5: 411130157ab6b3c034fa0d0852e00169
+      size: 489
+    - path: src/data/schema.py
+      hash: md5
+      md5: b17d756e2eba5ad21b062e61fcffca61
+      size: 1064
+    outs:
+    - path: data/processed/bike_clean.parquet
+      hash: md5
+      md5: 11da264e5704816109d8c72f2943eb14
+      size: 92464
+  preprocess:
+    cmd: python -m src.data.split
+    deps:
+    - path: configs/params.yaml
+      hash: md5
+      md5: d49ed3ffeca47852985a5f18067cee09
+      size: 1393
+    - path: data/processed/bike_clean.parquet
+      hash: md5
+      md5: 11da264e5704816109d8c72f2943eb14
+      size: 92464
+    - path: src/config.py
+      hash: md5
+      md5: a675cc46c728bc268212d0910aa70131
+      size: 1715
+    - path: src/data/split.py
+      hash: md5
+      md5: 95f8a79a48be271d4b58b25c8d8676f2
+      size: 2315
+    outs:
+    - path: data/splits/production.parquet
+      hash: md5
+      md5: 20ea77feea8544b7b320a84c88626e97
+      size: 126017
+    - path: data/splits/reference.parquet
+      hash: md5
+      md5: d7308e5f93450992cc2a8b686ebee57b
+      size: 16161
+    - path: data/splits/test.parquet
+      hash: md5
+      md5: 67838cf1ba2f55a30a916219e958a6da
+      size: 20905
+    - path: data/splits/train.parquet
+      hash: md5
+      md5: e138c71390b04ad5dd5c9a6a21ede0b2
+      size: 52015

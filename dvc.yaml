@@ -1,0 +1,25 @@
+﻿stages:
+  prepare:
+    cmd: python -m src.data.prepare
+    deps:
+      - data/raw/hour.csv
+      - src/data/prepare.py
+      - src/data/load.py
+      - src/data/schema.py
+      - src/config.py
+      - configs/params.yaml
+    outs:
+      - data/processed/bike_clean.parquet
+
+  preprocess:
+    cmd: python -m src.data.split
+    deps:
+      - data/processed/bike_clean.parquet
+      - src/data/split.py
+      - src/config.py
+      - configs/params.yaml
+    outs:
+      - data/splits/train.parquet
+      - data/splits/test.parquet
+      - data/splits/reference.parquet
+      - data/splits/production.parquet
