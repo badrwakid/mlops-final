@@ -146,7 +146,11 @@ def main() -> None:
             model_path = Path(cfg.paths.model)
             model_path.parent.mkdir(parents=True, exist_ok=True)
             joblib.dump(model, model_path)
-            mlflow.sklearn.log_model(model, artifact_path="model")
+            mlflow.sklearn.log_model(
+                model,
+                artifact_path="model",
+                registered_model_name=cfg.mlflow.registered_model_name,
+            )
             mlflow.log_artifact(cfg.paths.preprocessor, artifact_path="preprocessor")
 
         _persist_artifacts_if_gate_passes(
