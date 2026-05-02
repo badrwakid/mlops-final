@@ -9,7 +9,6 @@ from pathlib import Path
 
 import mlflow
 import mlflow.sklearn
-
 from src.config import load_config
 
 
