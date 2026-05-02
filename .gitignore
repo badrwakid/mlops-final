@@ -23,6 +23,7 @@ data/processed/*
 data/splits/*
 !data/splits/.gitkeep
 !data/splits/*.dvc
+!data/splits/metrics.json
 
 # Models & artifacts
 *.pkl
