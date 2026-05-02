@@ -1,10 +1,14 @@
 ---
 name: Bug report
-about: Something broken in data, training, registry, serving, or CI
-title: "[BUG] "
+about: Something broken in data, training, registry, serving, monitoring, or CI
+title: "fix(scope): "
 labels: ""
 assignees: ""
 ---
+
+## Area
+
+<!-- Choose one: data / DVC · preprocessing · training · MLflow · serving · CI · monitoring · other -->
 
 ## What happened
 
@@ -12,4 +16,16 @@ assignees: ""
 
 ## Steps to reproduce
 
-## Logs / screenshots (if any)
+1.
+2.
+3.
+
+## Logs / screenshots
+
+<!-- Tracebacks, CI job link, MLflow UI snippet if relevant -->
+
+## Environment (if useful)
+
+- OS:
+- Python:
+- Branch or commit:
