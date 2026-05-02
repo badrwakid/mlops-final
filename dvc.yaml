@@ -34,3 +34,18 @@
       - configs/params.yaml
     outs:
       - data/splits/preprocessor.pkl
+
+  train:
+    cmd: python -m src.training.train
+    deps:
+      - data/splits/train.parquet
+      - data/splits/test.parquet
+      - data/splits/preprocessor.pkl
+      - src/training/train.py
+      - src/training/hpo.py
+      - src/evaluation/metrics.py
+      - src/features/preprocessor.py
+      - src/config.py
+      - configs/params.yaml
+    outs:
+      - data/splits/model.pkl
