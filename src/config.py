@@ -67,6 +67,7 @@ class MLflowCfg(BaseModel):
 
 class ValidationCfg(BaseModel):
     min_test_r2: float
+    rmse_threshold: float
 
 
 class Config(BaseModel):

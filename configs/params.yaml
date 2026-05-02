@@ -53,3 +53,5 @@ mlflow:
 
 validation:
   min_test_r2: 0.70
+  # CI model-validation: require test RMSE to stay below this ceiling (from committed metrics.json)
+  rmse_threshold: 80.0
