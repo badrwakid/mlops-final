@@ -1,4 +1,6 @@
-﻿import pandas as pd
+﻿from pathlib import Path
+
+import pandas as pd
 import pytest
 from src.data.schema import raw_schema
 
@@ -31,3 +33,9 @@ def test_schema_rejects_zero_or_negative_count():
     df = pd.DataFrame([bad])
     with pytest.raises(Exception):
         raw_schema.validate(df)
+
+
+def test_sample_hour_csv_passes_schema():
+    csv_path = Path(__file__).resolve().parent / "sample_hour.csv"
+    df = pd.read_csv(csv_path)
+    raw_schema.validate(df)
