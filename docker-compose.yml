@@ -1,36 +1,44 @@
 services:
+  mlflow:
+    build:
+      context: .
+      dockerfile: docker/mlflow.Dockerfile
+    image: bike-mlflow:latest
+    container_name: mlflow
+    ports:
+      - "5000:5000"
+    volumes:
+      - mlflow-data:/mlflow
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/health')"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
   api:
     build:
       context: .
-      dockerfile: Dockerfile
-    command: uvicorn src.serving.app:app --host 0.0.0.0 --port 8000
+      dockerfile: docker/api.Dockerfile
+    image: bike-api:latest
+    container_name: api
+    depends_on:
+      mlflow:
+        condition: service_healthy
+    environment:
+      MLFLOW_TRACKING_URI: http://mlflow:5000
     ports:
       - "8000:8000"
-    environment:
-      - MLFLOW_TRACKING_URI=http://mlflow:5000
-    depends_on:
-      - mlflow
-
-  mlflow:
-    image: ghcr.io/mlflow/mlflow:v2.14.3
-    ports:
-      - "5000:5000"
-    command: >
-      mlflow server
-      --backend-store-uri sqlite:////mlflow.db
-      --default-artifact-root /mlartifacts
-      --host 0.0.0.0
-    volumes:
-      - ./mlflow.db:/mlflow.db
-      - ./mlartifacts:/mlartifacts
 
   prometheus:
-    image: prom/prometheus:v2.51.0
-    command:
-      - "--config.file=/etc/prometheus/prometheus.yml"
+    image: prom/prometheus:v2.53.0
+    container_name: prometheus
+    depends_on:
+      api:
+        condition: service_healthy
     ports:
       - "9090:9090"
     volumes:
       - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-    depends_on:
-      - api
+
+volumes:
+  mlflow-data:
