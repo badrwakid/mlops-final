@@ -36,6 +36,12 @@ Numeric weather inputs are already normalised to about \([0,1]\) in the UCI file
 
 After `SelectKBest` fits, ranked F-scores for all engineered features (pre-selection) are written to `docs/feature_scores.json` by the featurize stage. This surfaces which columns the univariate filter considered informative before the top-`k` cut.
 
+## Monitoring SLI/SLOs
+
+- Prediction latency p99 SLO: `< 500 ms` measured via `bike_prediction_latency_seconds`.
+- Validation RMSE SLO: `< 80.0` tracked in `data/splits/metrics.json` and the validation gate.
+- Input drift share SLO: `<= 0.20` based on `drift_summary.json` (`drift_share_inputs_only`).
+
 ## Related documents
 
 - `docs/model_card.md` — model summary (when present)

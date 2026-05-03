@@ -1,6 +1,11 @@
 from __future__ import annotations
 
+import hashlib
+import json
+import logging
 import os
+import time
+import uuid
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from typing import Any
@@ -20,6 +25,7 @@ from src.serving.metrics import (
     INFERENCE_COUNT,
     MODEL_VERSION,
     PREDICTION_CONFIDENCE,
+    PREDICTION_LATENCY,
     PREDICTION_VALUE,
 )
 from src.serving.schemas import (
@@ -30,6 +36,8 @@ from src.serving.schemas import (
     HealthResponse,
     PredictResponse,
 )
+
+log = logging.getLogger(__name__)
 
 
 @dataclass
@@ -100,11 +108,40 @@ def _loaded_model(app: FastAPI) -> LoadedModel:
     return loaded
 
 
+def _feature_hash(df: pd.DataFrame) -> str:
+    payload = df.to_json(orient="records", date_format="iso", double_precision=8)
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def _log_prediction_event(
+    *,
+    request_id: str,
+    endpoint: str,
+    model_version: str,
+    confidence: float,
+    latency_ms: float,
+    prediction: float,
+    features_hash: str,
+) -> None:
+    event = {
+        "event": "prediction",
+        "request_id": request_id,
+        "endpoint": endpoint,
+        "model_version": model_version,
+        "confidence": round(float(confidence), 6),
+        "latency_ms": round(float(latency_ms), 3),
+        "prediction": round(float(prediction), 6),
+        "feature_hash": features_hash,
+    }
+    log.info(json.dumps(event, separators=(",", ":")))
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     loaded = load_artifacts()
     app.state.loaded_model = loaded
     MODEL_VERSION.labels(version=loaded.model_version).set(1)
+    log.info("model loaded name=%s version=%s", loaded.model_name, loaded.model_version)
     yield
 
 
@@ -121,17 +158,39 @@ def health() -> HealthResponse:
     )
 
 
+@app.get("/ready")
+def ready() -> dict[str, str]:
+    loaded = _loaded_model(app)
+    if loaded.preprocessor is None or loaded.model is None:
+        raise HTTPException(status_code=503, detail="model artifacts are not ready")
+    return {"status": "ready"}
+
+
 @app.post("/predict", response_model=PredictResponse)
 def predict(record: BikeRecord) -> PredictResponse:
     loaded = _loaded_model(app)
+    request_id = str(uuid.uuid4())
+    start = time.perf_counter()
     df = _to_dataframe([record])
+    features_hash = _feature_hash(df)
     features = loaded.preprocessor.transform(df)
     item = _predict_with_confidence(loaded.model, features)[0]
+    latency_s = time.perf_counter() - start
     FEATURE_TEMP.observe(record.temp)
     FEATURE_HR.observe(record.hr)
     PREDICTION_CONFIDENCE.observe(item.confidence)
+    PREDICTION_LATENCY.observe(latency_s)
     PREDICTION_VALUE.observe(item.prediction)
-    INFERENCE_COUNT.labels(endpoint="/predict").inc()
+    INFERENCE_COUNT.labels(endpoint="/predict", model_version=loaded.model_version).inc()
+    _log_prediction_event(
+        request_id=request_id,
+        endpoint="/predict",
+        model_version=loaded.model_version,
+        confidence=item.confidence,
+        latency_ms=latency_s * 1000.0,
+        prediction=item.prediction,
+        features_hash=features_hash,
+    )
     return PredictResponse(
         prediction=item.prediction,
         confidence=item.confidence,
@@ -142,15 +201,30 @@ def predict(record: BikeRecord) -> PredictResponse:
 @app.post("/predict/batch", response_model=BatchPredictResponse)
 def predict_batch(request: BatchPredictRequest) -> BatchPredictResponse:
     loaded = _loaded_model(app)
+    request_id = str(uuid.uuid4())
+    start = time.perf_counter()
     df = _to_dataframe(request.records)
+    features_hash = _feature_hash(df)
     features = loaded.preprocessor.transform(df)
     items = _predict_with_confidence(loaded.model, features)
+    latency_s = time.perf_counter() - start
     for record, item in zip(request.records, items, strict=True):
         FEATURE_TEMP.observe(record.temp)
         FEATURE_HR.observe(record.hr)
         PREDICTION_CONFIDENCE.observe(item.confidence)
+        PREDICTION_LATENCY.observe(latency_s / max(len(items), 1))
         PREDICTION_VALUE.observe(item.prediction)
-    INFERENCE_COUNT.labels(endpoint="/predict/batch").inc()
+    INFERENCE_COUNT.labels(endpoint="/predict/batch", model_version=loaded.model_version).inc()
+    if items:
+        _log_prediction_event(
+            request_id=request_id,
+            endpoint="/predict/batch",
+            model_version=loaded.model_version,
+            confidence=float(np.mean([item.confidence for item in items])),
+            latency_ms=latency_s * 1000.0,
+            prediction=float(np.mean([item.prediction for item in items])),
+            features_hash=features_hash,
+        )
     return BatchPredictResponse(predictions=items, model_version=loaded.model_version)
 
 

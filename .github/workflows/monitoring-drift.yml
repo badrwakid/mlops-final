@@ -1,0 +1,38 @@
+name: Monitoring Drift Report
+
+on:
+  schedule:
+    - cron: "0 6 * * 1" # weekly Monday 06:00 UTC
+  workflow_dispatch:
+
+jobs:
+  drift-monitoring:
+    runs-on: ubuntu-latest
+    env:
+      PYTHONPATH: ${{ github.workspace }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run monitoring pipeline
+        run: python -m monitoring.run_monitoring
+        continue-on-error: true
+
+      - name: Upload drift artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: drift-reports
+          path: |
+            monitoring/evidently_reports/drift_summary.json
+            monitoring/evidently_reports/baseline.html
+            monitoring/evidently_reports/drift.html
+            monitoring/evidently_reports/interpretation.md
+

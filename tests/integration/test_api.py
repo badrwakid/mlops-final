@@ -59,6 +59,9 @@ def test_health_predict_batch_and_metrics(client):
     body = health.json()
     assert body["model_name"] == "bike_share_regressor"
     assert body["model_version"] == "ci-fixture"
+    ready = client.get("/ready")
+    assert ready.status_code == 200
+    assert ready.json()["status"] == "ready"
 
     prediction = client.post("/predict", json=VALID_RECORD)
     assert prediction.status_code == 200
@@ -82,6 +85,7 @@ def test_health_predict_batch_and_metrics(client):
         "bike_feature_temp",
         "bike_feature_hr",
         "bike_model_version_info",
+        "bike_prediction_latency_seconds",
     ):
         assert name in text, f"expected Prometheus metric {name!r} in /metrics response"
 

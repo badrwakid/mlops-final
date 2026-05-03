@@ -38,4 +38,8 @@ def test_schema_rejects_zero_or_negative_count():
 def test_sample_hour_csv_passes_schema():
     csv_path = Path(__file__).resolve().parent / "sample_hour.csv"
     df = pd.read_csv(csv_path)
+    # Plan: ~100+ rows from real data for representative CI validation (months, weathersit)
+    assert len(df) >= 100, "sample_hour.csv should have at least 100 data rows"
+    assert df["mnth"].nunique() >= 2, "fixture should span multiple months"
+    assert df["weathersit"].nunique() >= 2, "fixture should include multiple weather codes"
     raw_schema.validate(df)

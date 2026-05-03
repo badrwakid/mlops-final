@@ -1,6 +1,16 @@
-# MLflow Tracking Server (UI: http://localhost:5000) — align with project spec §3.3
-# API / app services can be added here alongside `mlflow` as needed.
 services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: uvicorn src.serving.app:app --host 0.0.0.0 --port 8000
+    ports:
+      - "8000:8000"
+    environment:
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+    depends_on:
+      - mlflow
+
   mlflow:
     image: ghcr.io/mlflow/mlflow:v2.14.3
     ports:
@@ -13,3 +23,14 @@ services:
     volumes:
       - ./mlflow.db:/mlflow.db
       - ./mlartifacts:/mlartifacts
+
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    depends_on:
+      - api

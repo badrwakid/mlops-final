@@ -22,11 +22,21 @@ MODEL_VERSION = Gauge(
 )
 INFERENCE_COUNT = Counter(
     "bike_inference_total",
-    "Total number of inference requests by endpoint",
-    ["endpoint"],
+    "Total number of inference requests by endpoint and model version",
+    ["endpoint", "model_version"],
+)
+PREDICTION_LATENCY = Histogram(
+    "bike_prediction_latency_seconds",
+    "End-to-end prediction latency in seconds",
+    buckets=(0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0),
 )
 PREDICTION_VALUE = Histogram(
     "bike_prediction_value",
     "Histogram of predicted rental counts",
     buckets=(0, 25, 50, 100, 200, 400, 800, 1600),
+)
+DRIFT_PSI = Gauge(
+    "bike_feature_drift_psi",
+    "Per-feature drift proxy from latest batch Evidently run (1.0 drift, 0.0 no drift)",
+    ["feature"],
 )
