@@ -28,7 +28,6 @@ pandera==0.19.3
 # Drift / Monitoring
 evidently==0.4.27
 prometheus-client==0.20.0
-prometheus-fastapi-instrumentator==7.0.0
 
 # Orchestration (Bonus B)
 prefect==2.19.4
@@ -42,3 +41,7 @@ ruff==0.4.7
 # Misc
 joblib==1.4.2
 requests==2.32.3
+
+# Docs / figures (regenerate DVC DAG PNG: python scripts/render_dvc_dag_png.py)
+matplotlib==3.9.2
+networkx==3.3

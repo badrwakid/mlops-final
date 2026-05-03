@@ -1,8 +1,9 @@
 {
-  "best_cv_rmse": 64.39162362496543,
+  "best_cv_rmse": 64.45705857880137,
   "best_params": {
     "max_depth": null,
-    "min_samples_leaf": 1,
+    "max_features": 1.0,
+    "min_samples_leaf": 2,
     "n_estimators": 200
   },
   "gate": {
@@ -10,8 +11,8 @@
     "passed": true
   },
   "test": {
-    "mae": 45.0629244170033,
-    "r2": 0.7570725279289972,
-    "rmse": 66.71144693740244
+    "mae": 44.97053333866219,
+    "r2": 0.7627293762984981,
+    "rmse": 65.9301449984944
   }
 }

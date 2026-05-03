@@ -25,3 +25,23 @@ def test_handles_empty_dict():
     result = drift_alert(drift_per_feature={}, threshold_share=0.20)
     assert result.alert is False
     assert result.drift_share == 0.0
+
+
+def test_excludes_columns_from_share():
+    result = drift_alert(
+        drift_per_feature={"temp": True, "target": True, "prediction": True, "hum": False},
+        threshold_share=0.60,
+        exclude_cols={"target", "prediction"},
+    )
+    assert result.drift_share == 0.5
+    assert result.alert is False
+
+
+def test_weighted_share_uses_feature_weights():
+    result = drift_alert(
+        drift_per_feature={"temp": True, "hum": False},
+        threshold_share=0.70,
+        feature_weights={"temp": 0.9, "hum": 0.1},
+    )
+    assert result.alert is True
+    assert result.drift_share == 0.9

@@ -15,10 +15,30 @@ def resolve_tracking_uri(configured_uri: str) -> str:
     return os.environ.get("MLFLOW_TRACKING_URI") or configured_uri
 
 
+def _portable_artifact_uris(runs: pd.DataFrame) -> pd.DataFrame:
+    """Strip machine-specific file:... prefixes so CSV evidence is shareable."""
+    if "artifact_uri" not in runs.columns:
+        return runs
+    out = runs.copy()
+
+    def _fix(val: object) -> object:
+        if not isinstance(val, str) or not val:
+            return val
+        low = val.lower()
+        if "mlruns" in low:
+            i = low.find("mlruns")
+            return val[i:].replace("\\", "/")
+        return val
+
+    out["artifact_uri"] = out["artifact_uri"].map(_fix)
+    return out
+
+
 def write_experiment_log(runs: pd.DataFrame, output_path: Path = OUTPUT_PATH) -> int:
     if runs.empty:
         raise ValueError("No runs found to export")
     output_path.parent.mkdir(parents=True, exist_ok=True)
+    runs = _portable_artifact_uris(runs)
     runs.to_csv(output_path, index=False)
     return len(runs)
 

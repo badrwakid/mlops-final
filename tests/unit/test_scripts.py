@@ -52,6 +52,17 @@ def test_write_experiment_log_rejects_empty_dataframe(tmp_path):
         write_experiment_log(pd.DataFrame(), tmp_path / "experiment_log.csv")
 
 
+def test_write_experiment_log_strips_machine_specific_artifact_uri_prefix(tmp_path):
+    runs = pd.DataFrame({
+        "run_id": ["abc"],
+        "artifact_uri": [r"file:D:/Users/dev/mlruns/123/run-id/artifacts/model"],
+    })
+    out_path = tmp_path / "experiment_log.csv"
+    write_experiment_log(runs, out_path)
+    written = pd.read_csv(out_path)
+    assert written["artifact_uri"].iloc[0] == "mlruns/123/run-id/artifacts/model"
+
+
 def test_export_runs_is_read_only_and_uses_mlflow_api(monkeypatch, tmp_path):
     class _MlflowCfg:
         tracking_uri = "file:./mlruns"

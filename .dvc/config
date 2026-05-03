@@ -3,4 +3,4 @@
 [cache]
     type = copy
 ['remote "localremote"']
-    url = ../../dvc-storage
+    url = ../dvc-storage

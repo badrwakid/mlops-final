@@ -40,6 +40,8 @@ jobs:
     name: test
     needs: [lint]
     runs-on: ubuntu-latest
+    env:
+      PYTHONPATH: ${{ github.workspace }}
     steps:
       - uses: actions/checkout@v4
 
@@ -73,6 +75,8 @@ jobs:
     name: data-validation
     needs: [test]
     runs-on: ubuntu-latest
+    env:
+      PYTHONPATH: ${{ github.workspace }}
     steps:
       - uses: actions/checkout@v4
 

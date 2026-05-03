@@ -94,6 +94,7 @@ def main() -> None:
             k=cfg.preprocessing.feature_selection_k,
             numeric_strategy=cfg.preprocessing.numeric_imputer_strategy,
             categorical_strategy=cfg.preprocessing.categorical_imputer_strategy,
+            cyclical_hr_mnth=cfg.preprocessing.cyclical_hr_mnth,
         )
 
     mlflow.set_tracking_uri(tracking_uri)
@@ -104,6 +105,7 @@ def main() -> None:
             "cv_folds": cfg.training.cv_folds,
             "n_trials": cfg.training.n_trials,
             "feature_selection_k": cfg.preprocessing.feature_selection_k,
+            "cyclical_hr_mnth": cfg.preprocessing.cyclical_hr_mnth,
             "validation_min_test_r2": cfg.validation.min_test_r2,
         })
         hpo_result = run_hpo(
