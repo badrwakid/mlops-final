@@ -42,3 +42,7 @@ ruff==0.4.7
 # Misc
 joblib==1.4.2
 requests==2.32.3
+
+# Docs / figures (regenerate DVC DAG PNG: python scripts/render_dvc_dag_png.py)
+matplotlib==3.9.2
+networkx==3.3
