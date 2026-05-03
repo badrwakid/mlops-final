@@ -42,6 +42,30 @@ After `SelectKBest` fits, ranked F-scores for all engineered features (pre-selec
 - Validation RMSE SLO: `< 80.0` tracked in `data/splits/metrics.json` and the validation gate.
 - Input drift share SLO: `<= 0.20` based on `drift_summary.json` (`drift_share_inputs_only`).
 
+## Serving API evidence (`/predict`)
+
+The FastAPI app (`src/serving/app.py`) exposes `GET /health`, `POST /predict`, and `POST /predict/batch`. Automated coverage lives in `tests/test_api.py` (pytest + `TestClient`).
+
+### How to capture a real screenshot (recommended)
+
+1. Start the stack (API on port 8000), for example: `docker compose up --build`.
+2. Open Swagger UI at `http://localhost:8000/docs`.
+3. Authorize if needed, then open **`POST /predict`** → **Try it out**.
+4. Paste a valid JSON payload (field names must match `BikeRecord` in `src/serving/schemas.py`) and click **Execute**.
+5. Screenshot the page showing **HTTP 200** and the response JSON containing `prediction`, `confidence`, and `model_version`.
+6. Save the image as `docs/screenshots/api_predict_swagger.png` and commit it:
+
+```bash
+git add docs/screenshots/api_predict_swagger.png docs/technical_report.md
+git commit -m "docs(c4): add real /predict screenshot evidence"
+```
+
+After the image exists, embed it here:
+
+```markdown
+![POST /predict (Swagger)](screenshots/api_predict_swagger.png)
+```
+
 ## Related documents
 
 - `docs/model_card.md` — model summary (when present)
