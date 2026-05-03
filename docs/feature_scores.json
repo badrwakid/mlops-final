@@ -1,0 +1,109 @@
+{
+  "k_selected": 14,
+  "all_features_ranked_by_f_score": [
+    {
+      "feature": "num__temp",
+      "f_score": 1589.9549824099693
+    },
+    {
+      "feature": "num__atemp",
+      "f_score": 1544.7201389245415
+    },
+    {
+      "feature": "num__hr_sin",
+      "f_score": 1443.4493358373404
+    },
+    {
+      "feature": "num__hr_cos",
+      "f_score": 1213.9296582338666
+    },
+    {
+      "feature": "num__mnth_cos",
+      "f_score": 705.231843963465
+    },
+    {
+      "feature": "cat__season_1",
+      "f_score": 610.2594328407828
+    },
+    {
+      "feature": "num__hum",
+      "f_score": 551.5693819704962
+    },
+    {
+      "feature": "cat__season_3",
+      "f_score": 251.3792325018824
+    },
+    {
+      "feature": "cat__weathersit_3",
+      "f_score": 109.39771435415473
+    },
+    {
+      "feature": "cat__weathersit_1",
+      "f_score": 62.165782976239115
+    },
+    {
+      "feature": "num__windspeed",
+      "f_score": 48.27923033394421
+    },
+    {
+      "feature": "cat__season_2",
+      "f_score": 29.944671121360024
+    },
+    {
+      "feature": "num__mnth_sin",
+      "f_score": 28.682383576926526
+    },
+    {
+      "feature": "cat__season_4",
+      "f_score": 4.027460615171115
+    },
+    {
+      "feature": "cat__holiday_0",
+      "f_score": 3.9878305045981404
+    },
+    {
+      "feature": "cat__holiday_1",
+      "f_score": 3.987830504598117
+    },
+    {
+      "feature": "cat__weathersit_2",
+      "f_score": 3.010015830439126
+    },
+    {
+      "feature": "cat__weekday_3",
+      "f_score": 1.5002267918968792
+    },
+    {
+      "feature": "cat__weekday_5",
+      "f_score": 1.3273617607318742
+    },
+    {
+      "feature": "cat__workingday_0",
+      "f_score": 1.2676647902296911
+    },
+    {
+      "feature": "cat__workingday_1",
+      "f_score": 1.2676647902296707
+    },
+    {
+      "feature": "cat__weekday_2",
+      "f_score": 0.7053844781414079
+    },
+    {
+      "feature": "cat__weekday_0",
+      "f_score": 0.11607482055055447
+    },
+    {
+      "feature": "cat__weekday_6",
+      "f_score": 0.05176551956249247
+    },
+    {
+      "feature": "cat__weekday_1",
+      "f_score": 0.025937579248153018
+    },
+    {
+      "feature": "cat__weekday_4",
+      "f_score": 0.0003981594808853139
+    }
+  ]
+}

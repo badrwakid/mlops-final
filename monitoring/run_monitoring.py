@@ -14,6 +14,7 @@ from evidently.metric_preset import (
 )
 from evidently.report import Report
 from src.config import load_config
+from src.serving.metrics import DRIFT_PSI
 
 from monitoring.drift_logic import drift_alert
 
@@ -41,8 +42,54 @@ def _drift_per_feature_from_report(report: Report) -> dict[str, bool]:
     return out
 
 
+def _feature_weights_from_scores(path: Path) -> dict[str, float]:
+    if not path.exists():
+        return {}
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    rows = payload.get("all_features_ranked_by_f_score", [])
+    raw: dict[str, float] = {}
+    for row in rows:
+        name = str(row.get("feature", ""))
+        score = float(row.get("f_score", 0.0))
+        # Convert SelectKBest names back to original feature names where possible.
+        if name.startswith("num__"):
+            clean = name.removeprefix("num__")
+            clean = clean.removesuffix("_sin").removesuffix("_cos")
+        elif name.startswith("cat__"):
+            clean = name.removeprefix("cat__").split("_", 1)[0]
+        else:
+            clean = name
+        raw[clean] = max(raw.get(clean, 0.0), score)
+    if not raw:
+        return {}
+    max_score = max(raw.values()) or 1.0
+    # Normalize into [0.2, 1.0] to avoid zeroing less important features.
+    return {k: 0.2 + 0.8 * (v / max_score) for k, v in raw.items()}
+
+
 def main() -> None:
     cfg = load_config()
+    out_dir = Path("monitoring/evidently_reports")
+    out_dir.mkdir(parents=True, exist_ok=True)
+    required = {
+        "model": Path(cfg.paths.model),
+        "preprocessor": Path(cfg.paths.preprocessor),
+        "reference": Path(cfg.paths.reference),
+        "production": Path(cfg.paths.production),
+    }
+    missing = [name for name, path in required.items() if not path.exists()]
+    if missing:
+        summary = {
+            "skipped": True,
+            "reason": "missing_required_artifacts",
+            "missing": missing,
+            "hint": "Run `dvc pull` or `dvc repro` before monitoring.",
+        }
+        with open(out_dir / "drift_summary.json", "w", encoding="utf-8") as f:
+            json.dump(summary, f, indent=2)
+        log.warning("monitoring skipped: missing artifacts: %s", ", ".join(missing))
+        return
+
     model = joblib.load(cfg.paths.model)
     preprocessor = joblib.load(cfg.paths.preprocessor)
     reference = pd.read_parquet(cfg.paths.reference)
@@ -58,9 +105,6 @@ def main() -> None:
     prod_clean = _add_predictions(production_clean, model, preprocessor, feature_cols, cfg.data.target)
     prod_drift = _add_predictions(production, model, preprocessor, feature_cols, cfg.data.target)
 
-    out_dir = Path("monitoring/evidently_reports")
-    out_dir.mkdir(parents=True, exist_ok=True)
-
     presets = [DataDriftPreset(), DataQualityPreset(), RegressionPreset()]
 
     baseline_report = Report(metrics=presets)
@@ -74,12 +118,33 @@ def main() -> None:
     log.info("drift report saved → %s", out_dir / "drift.html")
 
     drift_map = _drift_per_feature_from_report(drift_report)
-    result = drift_alert(drift_map, threshold_share=cfg.drift.drift_threshold_share)
+    exclude = {"yr", "target", "prediction"}
+    score_weights = _feature_weights_from_scores(Path("docs/feature_scores.json"))
+    result = drift_alert(
+        drift_map,
+        threshold_share=cfg.drift.drift_threshold_share,
+        exclude_cols=exclude,
+        feature_weights=score_weights,
+    )
+    input_drift_map = {k: v for k, v in drift_map.items() if k not in exclude}
+    for feature, is_drifted in input_drift_map.items():
+        DRIFT_PSI.labels(feature=feature).set(1.0 if is_drifted else 0.0)
     summary = {
         "alert": result.alert,
         "drift_share": result.drift_share,
+        "drift_share_inputs_only": (
+            (sum(1 for v in input_drift_map.values() if v) / len(input_drift_map))
+            if input_drift_map
+            else 0.0
+        ),
         "drifted_features": result.drifted_features,
+        "excluded_from_share": sorted(exclude),
         "threshold": cfg.drift.drift_threshold_share,
+        "severity": "P2" if result.alert else "P3",
+        "policy": (
+            "Trigger retraining when input drift_share exceeds threshold in 2 consecutive windows; "
+            "investigate feature pipelines immediately."
+        ),
     }
     with open(out_dir / "drift_summary.json", "w", encoding="utf-8") as f:
         json.dump(summary, f, indent=2)

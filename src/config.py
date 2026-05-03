@@ -35,6 +35,8 @@ class PreprocessingCfg(BaseModel):
     numeric_imputer_strategy: str
     categorical_imputer_strategy: str
     feature_selection_k: int
+    cyclical_hr_mnth: bool = True
+    feature_scores_json: str | None = None
 
 
 class TrainingCfg(BaseModel):

@@ -19,6 +19,9 @@ def _toy(n=200):
         "atemp": rng.random(n),
         "hr": rng.integers(0, 24, size=n),
         "mnth": rng.integers(1, 13, size=n),
+        # Leakage columns from raw UCI schema — must never appear in split outputs
+        "casual": rng.integers(0, 50, size=n),
+        "registered": rng.integers(0, 80, size=n),
     })
 
 
@@ -35,7 +38,15 @@ def test_build_splits_returns_four_disjoint_frames():
 
 def test_no_target_leakage_columns_present():
     df = _toy()
-    train, *_ = build_splits(df, "yr", 0.2, 0.1, 0)
+    assert "casual" in df.columns and "registered" in df.columns
+    train, *_ = build_splits(
+        df,
+        "yr",
+        0.2,
+        0.1,
+        0,
+        drop_columns=["instant", "dteday", "casual", "registered"],
+    )
     for c in ("casual", "registered"):
         assert c not in train.columns
 
