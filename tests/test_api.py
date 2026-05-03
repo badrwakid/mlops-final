@@ -1,4 +1,4 @@
-"""API integration tests.
+"""API tests for the FastAPI serving app (Component 4).
 
 GitHub Actions does not ship ``data/splits/model.pkl`` or a local MLflow server, so we patch
 ``load_artifacts`` with a tiny sklearn model + preprocessor that match the expected tensor shape.
