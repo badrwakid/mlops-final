@@ -25,8 +25,9 @@ VALID_RECORD = {
     "windspeed": 0.20,
 }
 
-# After SelectKBest(k=12) the training pipeline uses 12 columns; keep in sync with configs/params.yaml.
-_N_FEATURES = 12
+# After SelectKBest(k=feature_selection_k) the training pipeline uses that many columns; keep in sync
+# with configs/params.yaml preprocessing.feature_selection_k (currently 14).
+_N_FEATURES = 14
 
 
 def _fake_load_artifacts() -> LoadedModel:
@@ -74,4 +75,18 @@ def test_health_predict_batch_and_metrics(client):
 
     metrics = client.get("/metrics")
     assert metrics.status_code == 200
-    assert "bike_inference_total" in metrics.text
+    text = metrics.text
+    for name in (
+        "bike_inference_total",
+        "bike_prediction_confidence",
+        "bike_feature_temp",
+        "bike_feature_hr",
+        "bike_model_version_info",
+    ):
+        assert name in text, f"expected Prometheus metric {name!r} in /metrics response"
+
+
+def test_predict_rejects_invalid_input(client):
+    bad = {**VALID_RECORD, "temp": 5.0}
+    response = client.post("/predict", json=bad)
+    assert response.status_code == 422

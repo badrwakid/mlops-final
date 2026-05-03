@@ -28,7 +28,6 @@ pandera==0.19.3
 # Drift / Monitoring
 evidently==0.4.27
 prometheus-client==0.20.0
-prometheus-fastapi-instrumentator==7.0.0
 
 # Orchestration (Bonus B)
 prefect==2.19.4
