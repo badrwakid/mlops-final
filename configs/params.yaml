@@ -22,16 +22,23 @@ data:
 preprocessing:
   numeric_imputer_strategy: median
   categorical_imputer_strategy: most_frequent
-  feature_selection_k: 12
+  # Lecture 03b: cyclical sin/cos for hour (24) and month (12); disable to compare against raw hr/mnth + StandardScaler
+  cyclical_hr_mnth: true
+  feature_selection_k: 14
+  # Written by featurize: ranked f-scores from SelectKBest (before k selection)
+  feature_scores_json: docs/feature_scores.json
 
 training:
   model_type: random_forest
-  n_trials: 20
+  # Lecture 04: ~60 random trials; with expanded grid, 60 remains a strong sample
+  n_trials: 60
   cv_folds: 3
   hpo_search_space:
     n_estimators: [100, 200, 400]
     max_depth: [4, 8, 16, null]
     min_samples_leaf: [1, 2, 4]
+    # Lecture 04 (RF): max_features is a key knob; 1.0 = all features
+    max_features: ["sqrt", "log2", 1.0]
 
 drift:
   perturb_temp_factor: 1.10

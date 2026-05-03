@@ -30,6 +30,7 @@ data/splits/*
 *.joblib
 mlruns/
 mlflow.db
+mlartifacts/
 dvc-storage/
 
 # Generated reports

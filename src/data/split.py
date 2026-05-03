@@ -6,6 +6,7 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 
 from src.config import load_config
+from src.data.columns import drop_configured_columns
 
 
 def inject_drift(
@@ -32,9 +33,15 @@ def build_splits(
     test_size: float,
     ref_holdout: float,
     random_state: int,
+    drop_columns: list[str] | None = None,
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    if drop_columns:
+        df = drop_configured_columns(df, drop_columns)
     year0 = df[df[split_col] == 0].copy()
     year1 = df[df[split_col] == 1].copy()
+    # Temporal split: train/test/reference are year 0 only; production is year 1 (with drift).
+    # Random splits below are within year 0 — not stratified on cnt (regression); stratify=
+    # is undefined for continuous targets without binning; quantile stratification is optional.
     year0_main, reference = train_test_split(
         year0, test_size=ref_holdout, random_state=random_state,
     )
@@ -53,6 +60,7 @@ def main() -> None:
         test_size=cfg.data.test_size,
         ref_holdout=cfg.data.reference_holdout,
         random_state=cfg.data.random_state,
+        drop_columns=cfg.data.drop_columns,
     )
     production = inject_drift(
         year1,

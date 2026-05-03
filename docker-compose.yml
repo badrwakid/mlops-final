@@ -1,0 +1,15 @@
+# MLflow Tracking Server (UI: http://localhost:5000) — align with project spec §3.3
+# API / app services can be added here alongside `mlflow` as needed.
+services:
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v2.14.3
+    ports:
+      - "5000:5000"
+    command: >
+      mlflow server
+      --backend-store-uri sqlite:////mlflow.db
+      --default-artifact-root /mlartifacts
+      --host 0.0.0.0
+    volumes:
+      - ./mlflow.db:/mlflow.db
+      - ./mlartifacts:/mlartifacts

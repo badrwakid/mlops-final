@@ -28,7 +28,8 @@ def test_build_preprocessor_returns_pipeline_with_correct_steps():
         k=10,
     )
     step_names = [s[0] for s in pipe.steps]
-    assert "preprocessor" in step_names
+    assert "cyclical" in step_names
+    assert "column_prep" in step_names
     assert "selector" in step_names
 
 
@@ -69,3 +70,30 @@ def test_imputes_missing_numeric_values():
     ], k=10)
     X_t = pipe.transform(df.drop(columns=["cnt"]))
     assert not np.isnan(X_t).any()
+
+
+def test_cyclical_encoder_replaces_hr_mnth_with_trig_columns():
+    from src.features.preprocessor import CyclicalHrMnthEncoder
+
+    enc = CyclicalHrMnthEncoder(enabled=True)
+    df = _toy_train()
+    out = enc.fit_transform(df.drop(columns=["cnt"]))
+    assert "hr" not in out.columns and "mnth" not in out.columns
+    assert "hr_sin" in out.columns and "hr_cos" in out.columns
+    assert "mnth_sin" in out.columns and "mnth_cos" in out.columns
+
+
+def test_cyclical_disabled_keeps_hr_mnth():
+    df = _toy_train()
+    pipe = fit_preprocessor(
+        df,
+        target="cnt",
+        numeric=["temp", "atemp", "hum", "windspeed", "hr", "mnth"],
+        categorical=["season", "holiday", "workingday", "weathersit", "weekday"],
+        k=10,
+        cyclical_hr_mnth=False,
+    )
+    # column_prep still expects raw hr, mnth; no trig columns in input
+    X = df.drop(columns=["cnt"])
+    out = pipe.named_steps["cyclical"].transform(X)
+    assert "hr" in out.columns and "mnth" in out.columns
