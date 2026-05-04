@@ -111,15 +111,13 @@ This project predicts a continuous rental count. The rubric’s “inference cou
 ## Bonus B — Pipeline orchestration (Prefect) (10/10 checklist)
 
 - Flow: `flows/training_flow.py` — tasks **`validate_data` → `preprocess` → `train` → `evaluate` → `register_model`** (five tasks; failure in an upstream task stops downstream runs with Prefect’s default dependency graph).
-- **UI evidence (you must add the PNGs):** after `prefect server start` (or your Prefect Cloud workspace), run the flow from the UI or CLI, then capture:
-  1. **Successful end-to-end run** — save as `docs/screenshots/prefect_flow_run_success.png`.
-  2. **Failed run with downstream not executed** — e.g. temporarily raise in `validate_data` or force `evaluate` to fail the R² gate; save as `docs/screenshots/prefect_flow_run_failed_halt.png`.
-- Embed in this report (uncomment when files exist):
+- **UI evidence** — after `prefect server start` (or your Prefect Cloud workspace), run the flow from the UI or CLI, then capture:
+  1. **Successful end-to-end run** — `docs/screenshots/prefect_flow_run_success.png`.
+  2. **Failed run with downstream not executed** — e.g. raise in `validate_data` or fail the R² gate in `evaluate`; `docs/screenshots/prefect_flow_run_failed_halt.png`.
 
-```markdown
 ![Prefect flow success](screenshots/prefect_flow_run_success.png)
+
 ![Prefect flow failure / halt](screenshots/prefect_flow_run_failed_halt.png)
-```
 
 ## Related documents
 
