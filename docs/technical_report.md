@@ -60,9 +60,11 @@ git add docs/screenshots/api_predict_swagger.png docs/technical_report.md
 git commit -m "docs(c4): add real /predict screenshot evidence"
 ```
 
-Captured evidence (real Swagger UI call):
+After the image exists, embed it here:
 
+```markdown
 ![POST /predict (Swagger)](screenshots/api_predict_swagger.png)
+```
 
 ## Related documents
 
