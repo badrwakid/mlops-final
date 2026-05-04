@@ -113,6 +113,20 @@ def _feature_hash(df: pd.DataFrame) -> str:
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
+def _prediction_output_class(prediction: float) -> str:
+    """Bin predicted rental count for a Prometheus 'class' label (regression task)."""
+    y = float(prediction)
+    if y < 100.0:
+        return "very_low"
+    if y < 200.0:
+        return "low"
+    if y < 400.0:
+        return "medium"
+    if y < 800.0:
+        return "high"
+    return "very_high"
+
+
 def _log_prediction_event(
     *,
     request_id: str,
@@ -181,7 +195,12 @@ def predict(record: BikeRecord) -> PredictResponse:
     PREDICTION_CONFIDENCE.observe(item.confidence)
     PREDICTION_LATENCY.observe(latency_s)
     PREDICTION_VALUE.observe(item.prediction)
-    INFERENCE_COUNT.labels(endpoint="/predict", model_version=loaded.model_version).inc()
+    out_cls = _prediction_output_class(item.prediction)
+    INFERENCE_COUNT.labels(
+        endpoint="/predict",
+        model_version=loaded.model_version,
+        output_class=out_cls,
+    ).inc()
     _log_prediction_event(
         request_id=request_id,
         endpoint="/predict",
@@ -214,7 +233,12 @@ def predict_batch(request: BatchPredictRequest) -> BatchPredictResponse:
         PREDICTION_CONFIDENCE.observe(item.confidence)
         PREDICTION_LATENCY.observe(latency_s / max(len(items), 1))
         PREDICTION_VALUE.observe(item.prediction)
-    INFERENCE_COUNT.labels(endpoint="/predict/batch", model_version=loaded.model_version).inc()
+        out_cls = _prediction_output_class(item.prediction)
+        INFERENCE_COUNT.labels(
+            endpoint="/predict/batch",
+            model_version=loaded.model_version,
+            output_class=out_cls,
+        ).inc()
     if items:
         _log_prediction_event(
             request_id=request_id,

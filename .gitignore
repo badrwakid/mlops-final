@@ -44,3 +44,7 @@ monitoring/evidently_reports/*.html
 
 # Prefect
 .prefect/
+
+# Local tool downloads / TSDB noise (do not commit)
+.tools/
+data/chunks_head/
