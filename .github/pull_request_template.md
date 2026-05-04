@@ -5,7 +5,7 @@ Use the same style as commit messages and PRs on `main`:
 `type(scope): short description`
 
 - **Types:** `feat` | `fix` | `chore` | `test` | `docs`
-- **Examples:** `feat(serving): add batch predict endpoint` · `chore(ci): cache pip in workflow` · `fix(dvc): correct train stage deps`
+- **Examples:** `feat(serving): add batch predict endpoint` · `chore(ci): cache pip in workflow` · `fix(dvc): correct train stage deps` · `docs(evidence): update technical report screenshots`
 
 ## Branch
 
@@ -15,6 +15,14 @@ Use the same style as commit messages and PRs on `main`:
 ## Summary
 
 <!-- What changed and why (1–3 sentences). -->
+
+## How to test
+
+<!-- e.g. commands, Docker, or “N/A (docs-only)”. -->
+
+## Docs / evidence (if applicable)
+
+<!-- e.g. `docs/technical_report.md`, `docs/screenshots/`, or “N/A”. -->
 
 ## Related issues
 
@@ -34,5 +42,5 @@ Closes #
   - `test`
   - `data-validation`
   - `model-validation`
-- [ ] **Repo hygiene:** No raw data under `data/` (use DVC), no `.env`, venv, or `mlruns/` committed unintentionally.
+- [ ] **Repo hygiene:** No raw data under `data/` (use DVC), no `.env`, local venvs (e.g. `.venv/`, `.venv_strict/`), or experiment dirs such as `mlruns/` / `mlruns_local_strict/` committed unintentionally.
 - [ ] **Config:** Deliberate updates to `configs/params.yaml`, `dvc.yaml` / `dvc.lock` only when intended.
