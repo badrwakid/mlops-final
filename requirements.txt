@@ -40,6 +40,8 @@ httpx==0.27.0
 ruff==0.4.7
 
 # Misc
+# MLflow (and other tools) import pkg_resources; ensure fresh venvs are not missing it
+setuptools==80.10.2
 joblib==1.4.2
 requests==2.32.3
 
