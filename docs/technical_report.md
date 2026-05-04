@@ -86,12 +86,10 @@ This project predicts a continuous rental count. The rubric’s “inference cou
 - **UI evidence (you must add the PNGs):** after `prefect server start` (or your Prefect Cloud workspace), run the flow from the UI or CLI, then capture:
   1. **Successful end-to-end run** — save as `docs/screenshots/prefect_flow_run_success.png`.
   2. **Failed run with downstream not executed** — e.g. temporarily raise in `validate_data` or force `evaluate` to fail the R² gate; save as `docs/screenshots/prefect_flow_run_failed_halt.png`.
-- Embed in this report (uncomment when files exist):
+- Embedded below (paths relative to `docs/`):
 
-```markdown
 ![Prefect flow success](screenshots/prefect_flow_run_success.png)
 ![Prefect flow failure / halt](screenshots/prefect_flow_run_failed_halt.png)
-```
 
 ## Related documents
 
