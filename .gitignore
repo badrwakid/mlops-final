@@ -48,3 +48,8 @@ monitoring/evidently_reports/*.html
 # Local tool downloads / TSDB noise (do not commit)
 .tools/
 data/chunks_head/
+coverage.xml
+data/wal/
+data/queries.active
+# Local Prometheus block dir (e.g. data/01K.../); not the DVC raw/processed/splits tree
+data/01K*/
