@@ -70,4 +70,4 @@ Then open `curl http://localhost:8000/health`.
 ## Documentation
 
 - `docs/technical_report.md` — pipeline evidence (includes DVC DAG figure)
-- `docs/model_card.md` and `docs/data_card.md` — model and data details (when present)
+- `docs/model_card.md` and `docs/data_card.md` — model and data details

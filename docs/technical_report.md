@@ -60,14 +60,41 @@ git add docs/screenshots/api_predict_swagger.png docs/technical_report.md
 git commit -m "docs(c4): add real /predict screenshot evidence"
 ```
 
-After the image exists, embed it here:
+After the image exists, it is embedded below (see also `docs/screenshots/api_predict_swagger.png` in the repo).
+
+![POST /predict (Swagger)](screenshots/api_predict_swagger.png)
+
+## CI/CD (Component 5) — evidence and branch protection
+
+- Workflow: `.github/workflows/ci.yml` (stages: **lint** → **test** with coverage floor → **data-validation** → **model-validation**).
+- Green CI and local coverage: commit screenshots under `docs/screenshots/` (e.g. `ci_green_run_1.png`, `pytest_coverage_report.png`) and keep them in sync with the report.
+- **Branch protection (manual, required for full marks):** in the GitHub repo **Settings → Branches → Branch protection rules** for `main`, require the workflow jobs above to pass before merge, and use pull requests (no direct pushes that skip checks). The assistant cannot verify your org settings; include a short note in the submission that this rule is enabled, or a screenshot of the rule if your course allows it.
+
+## Monitoring (Component 6) — “inference count by class” (regression)
+
+This project predicts a continuous rental count. The rubric’s “inference count by class” is implemented as `bike_inference_total` with an **`output_class`** label: predicted demand is binned into `very_low` / `low` / `medium` / `high` / `very_high` (see `src/serving/metrics.py` and `_prediction_output_class` in `src/serving/app.py`). That gives a per–output-class traffic series comparable to class-stratified inference counts in classification.
+
+## Bonus A — Docker containerization (10/10 checklist)
+
+- `docker/api.Dockerfile`: pinned base image, non-root user, healthcheck.
+- `docker-compose.yml`: at least **api** + **mlflow** (and **prometheus**), internal service DNS (e.g. `mlflow:5000`, not `localhost` from other containers).
+- Evidence: `docker compose up --build` then `GET /health` returns 200; store screenshots such as `docs/screenshots/docker_compose_ps_healthy_1.png`, `api_health_200.png`.
+
+## Bonus B — Pipeline orchestration (Prefect) (10/10 checklist)
+
+- Flow: `flows/training_flow.py` — tasks **`validate_data` → `preprocess` → `train` → `evaluate` → `register_model`** (five tasks; failure in an upstream task stops downstream runs with Prefect’s default dependency graph).
+- **UI evidence (you must add the PNGs):** after `prefect server start` (or your Prefect Cloud workspace), run the flow from the UI or CLI, then capture:
+  1. **Successful end-to-end run** — save as `docs/screenshots/prefect_flow_run_success.png`.
+  2. **Failed run with downstream not executed** — e.g. temporarily raise in `validate_data` or force `evaluate` to fail the R² gate; save as `docs/screenshots/prefect_flow_run_failed_halt.png`.
+- Embed in this report (uncomment when files exist):
 
 ```markdown
-![POST /predict (Swagger)](screenshots/api_predict_swagger.png)
+![Prefect flow success](screenshots/prefect_flow_run_success.png)
+![Prefect flow failure / halt](screenshots/prefect_flow_run_failed_halt.png)
 ```
 
 ## Related documents
 
-- `docs/model_card.md` — model summary (when present)
-- `docs/data_card.md` — data summary (when present)
+- `docs/model_card.md` — model summary
+- `docs/data_card.md` — data summary
 - `docs/feature_scores.json` — SelectKBest f-statistics (regenerate via `dvc repro` / `featurize` stage)

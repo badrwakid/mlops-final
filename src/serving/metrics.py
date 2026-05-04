@@ -22,8 +22,9 @@ MODEL_VERSION = Gauge(
 )
 INFERENCE_COUNT = Counter(
     "bike_inference_total",
-    "Total number of inference requests by endpoint and model version",
-    ["endpoint", "model_version"],
+    "Inference count by endpoint, model version, and predicted output class "
+    "(regression: binned demand level; maps rubric 'inference count by class')",
+    ["endpoint", "model_version", "output_class"],
 )
 PREDICTION_LATENCY = Histogram(
     "bike_prediction_latency_seconds",
