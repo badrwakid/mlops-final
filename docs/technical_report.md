@@ -67,7 +67,7 @@ The FastAPI app (`src/serving/app.py`) exposes `GET /health`, `POST /predict`, a
 3. Authorize if needed, then open **`POST /predict`** → **Try it out**.
 4. Paste a valid JSON payload (field names must match `BikeRecord` in `src/serving/schemas.py`) and click **Execute**.
 5. Screenshot the page showing **HTTP 200** and the response JSON containing `prediction`, `confidence`, and `model_version`.
-6. Save the image as `docs/screenshots/api_predict_swagger_1.png` (or `api_predict_swagger_2.png`) and commit it:
+6. Save the image as `docs/screenshots/api_predict_swagger_1.png` (extra captures optional, e.g. `api_predict_swagger_2.png`) and commit it:
 
 ```bash
 git add docs/screenshots/api_predict_swagger_1.png docs/technical_report.md
