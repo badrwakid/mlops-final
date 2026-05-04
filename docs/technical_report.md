@@ -87,6 +87,11 @@ After the image exists, it is embedded below (see also `docs/screenshots/api_pre
 
 - Workflow: `.github/workflows/ci.yml` (stages: **lint** → **test** with coverage floor → **data-validation** → **model-validation**).
 - Green CI and local coverage: commit screenshots under `docs/screenshots/` (e.g. `ci_green_run_1.png`, `pytest_coverage_report.png`) and keep them in sync with the report.
+
+Local run (`.venv_strict`, `PYTHONPATH=.`) meeting the **70%** coverage gate — see `docs/screenshots/pytest_coverage_report.png`:
+
+![pytest coverage — 67 passed, 81.29% total](screenshots/pytest_coverage_report.png)
+
 - **Branch protection (manual, required for full marks):** in the GitHub repo **Settings → Branches → Branch protection rules** for `main`, require the workflow jobs above to pass before merge, and use pull requests (no direct pushes that skip checks). The assistant cannot verify your org settings; include a short note in the submission that this rule is enabled, or a screenshot of the rule if your course allows it.
 
 Strict-proof screenshot target:
