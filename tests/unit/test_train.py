@@ -5,9 +5,9 @@ from src.training.train import (
     _apply_validation_gate,
     _build_baseline_model,
     _feature_columns,
+    _log_hpo_curve_artifacts,
     _persist_artifacts_if_gate_passes,
     _resolve_tracking_uri,
-    _log_hpo_curve_artifacts,
 )
 
 
