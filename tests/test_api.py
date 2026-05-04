@@ -88,6 +88,9 @@ def test_health_predict_batch_and_metrics(client):
         "bike_prediction_latency_seconds",
     ):
         assert name in text, f"expected Prometheus metric {name!r} in /metrics response"
+    # Regression rubric: inference count labeled by predicted demand class (binned target).
+    assert "output_class" in text
+    assert "low" in text  # DummyRegressor constant=100.0 → "low" bin
 
 
 def test_predict_rejects_invalid_input(client):
