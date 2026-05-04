@@ -71,3 +71,9 @@ Then open `curl http://localhost:8000/health`.
 
 - `docs/technical_report.md` — pipeline evidence (includes DVC DAG figure)
 - `docs/model_card.md` and `docs/data_card.md` — model and data details
+
+## Verification Evidence (strict grading)
+
+- Clean-install quickstart verification screenshot target: `docs/screenshots/quickstart_clean_install.png`
+- DVC deterministic repro screenshot target: `docs/screenshots/dvc_repro_deterministic.png`
+- Branch protection screenshot target: `docs/screenshots/branch_protection_main.png`
