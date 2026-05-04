@@ -84,3 +84,70 @@ def test_featurize_main_writes_preprocessor_and_scores(tmp_path, monkeypatch):
 
     assert dumped and dumped[0][0] is fitted
     assert (tmp_path / "preprocessor.pkl").exists()
+
+
+def test_featurize_main_calls_export_when_scores_path_set(
+    tmp_path: Path, monkeypatch, request
+) -> None:
+    train_df = _toy_train()
+    fitted = MagicMock(name="pipeline")
+    called: list[Path] = []
+
+    def fake_fit(*_a, **_k):
+        return fitted
+
+    def fake_dump(obj, path):
+        Path(path).write_bytes(b"fake-pkl")
+
+    def capture_export(_pipe, path: Path) -> None:
+        called.append(Path(path))
+
+    monkeypatch.setattr(featurize_mod.pd, "read_parquet", lambda _path: train_df)
+    monkeypatch.setattr(featurize_mod, "fit_preprocessor", fake_fit)
+    monkeypatch.setattr(featurize_mod.joblib, "dump", fake_dump)
+    monkeypatch.setattr(featurize_mod, "export_selector_feature_scores", capture_export)
+
+    cfg = SimpleNamespace(
+        paths=SimpleNamespace(
+            train="/x/train.parquet",
+            preprocessor=str(tmp_path / "preprocessor.pkl"),
+        ),
+        data=SimpleNamespace(
+            target="cnt",
+            numeric_features=[
+                "temp",
+                "atemp",
+                "hum",
+                "windspeed",
+                "hr",
+                "mnth",
+            ],
+            categorical_features=[
+                "season",
+                "holiday",
+                "workingday",
+                "weathersit",
+                "weekday",
+            ],
+        ),
+        preprocessing=SimpleNamespace(
+            feature_selection_k=10,
+            numeric_imputer_strategy="median",
+            categorical_imputer_strategy="most_frequent",
+            cyclical_hr_mnth=True,
+            feature_scores_json="docs/.pytest_feat_scores_tmp.json",
+        ),
+    )
+    monkeypatch.setattr(featurize_mod, "load_config", lambda: cfg)
+
+    featurize_mod.main()
+
+    assert len(called) == 1
+    assert called[0].name == ".pytest_feat_scores_tmp.json"
+
+    def cleanup():
+        p = called[0]
+        if p.exists():
+            p.unlink()
+
+    request.addfinalizer(cleanup)
