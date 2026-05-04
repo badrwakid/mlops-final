@@ -8,6 +8,7 @@ from src.training.train import (
     _log_hpo_curve_artifacts,
     _persist_artifacts_if_gate_passes,
     _resolve_tracking_uri,
+    _log_hpo_curve_artifacts,
 )
 
 
