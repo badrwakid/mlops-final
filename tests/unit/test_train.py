@@ -7,6 +7,7 @@ from src.training.train import (
     _feature_columns,
     _persist_artifacts_if_gate_passes,
     _resolve_tracking_uri,
+    _log_hpo_curve_artifacts,
 )
 
 
@@ -69,3 +70,34 @@ def test_persist_artifacts_if_gate_passes_raises_before_artifact_persistence():
         )
 
     assert artifact_persisted is False
+
+
+def test_log_hpo_curve_artifacts_logs_step_metrics_and_csv_artifact():
+    logged_metrics: list[tuple[str, float, int]] = []
+    logged_artifacts: list[tuple[str, str]] = []
+
+    class DummyMlflow:
+        @staticmethod
+        def log_metric(name, value, step=None):  # noqa: ANN001
+            logged_metrics.append((name, value, step))
+
+        @staticmethod
+        def log_artifact(path, artifact_path=None):  # noqa: ANN001
+            logged_artifacts.append((path, artifact_path))
+
+    trials = [
+        SimpleNamespace(number=0, value=70.5),
+        SimpleNamespace(number=1, value=65.2),
+        SimpleNamespace(number=2, value=None),  # ignored
+    ]
+    hpo_result = SimpleNamespace(study=SimpleNamespace(trials=trials))
+
+    _log_hpo_curve_artifacts(DummyMlflow(), hpo_result)
+
+    assert logged_metrics == [
+        ("hpo_cv_rmse_curve", 70.5, 0),
+        ("hpo_cv_rmse_curve", 65.2, 1),
+    ]
+    assert len(logged_artifacts) == 1
+    _, artifact_path = logged_artifacts[0]
+    assert artifact_path == "hpo"
