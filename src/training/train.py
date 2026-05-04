@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import tempfile
 from collections.abc import Callable
 from pathlib import Path
 
@@ -66,6 +67,28 @@ def _persist_artifacts_if_gate_passes(
     return gate
 
 
+def _log_hpo_curve_artifacts(mlflow_module, hpo_result) -> None:  # noqa: ANN001
+    """Log parent-run HPO curve as step metrics + CSV artifact."""
+    curve_rows: list[dict[str, float]] = []
+    for trial in hpo_result.study.trials:
+        if trial.value is None:
+            continue
+        cv_rmse = float(trial.value)
+        step = int(trial.number)
+        # Parent-run step metric gives a visible optimization curve in MLflow UI.
+        mlflow_module.log_metric("hpo_cv_rmse_curve", cv_rmse, step=step)
+        curve_rows.append({"trial": step, "cv_rmse": cv_rmse})
+
+    if not curve_rows:
+        return
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        out_path = Path(tmpdir) / "hpo_cv_rmse_curve.csv"
+        lines = ["trial,cv_rmse"] + [f"{row['trial']},{row['cv_rmse']}" for row in curve_rows]
+        out_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        mlflow_module.log_artifact(str(out_path), artifact_path="hpo")
+
+
 def main() -> None:
     import mlflow
     import mlflow.sklearn
@@ -117,6 +140,7 @@ def main() -> None:
             random_state=cfg.data.random_state,
             preprocessor_factory=preprocessor_factory,
         )
+        _log_hpo_curve_artifacts(mlflow, hpo_result)
         mlflow.log_params({f"best_{key}": value for key, value in hpo_result.best_params.items()})
         mlflow.log_metric("best_cv_rmse", hpo_result.best_cv_rmse)
 
