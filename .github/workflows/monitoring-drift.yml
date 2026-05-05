@@ -1,3 +1,5 @@
+# Weekly drift reports: needs data/splits/* + pickles. Restores a DVC artifact cache or runs
+# full `dvc repro` (slow first time — Optuna trials) with file-backed MLflow — no Docker MLflow.
 name: Monitoring Drift Report
 
 on:
@@ -5,11 +7,19 @@ on:
     - cron: "0 6 * * 1" # weekly Monday 06:00 UTC
   workflow_dispatch:
 
+concurrency:
+  group: drift-${{ github.repository }}
+  cancel-in-progress: false
+
 jobs:
   drift-monitoring:
     runs-on: ubuntu-latest
+    timeout-minutes: 90
     env:
       PYTHONPATH: ${{ github.workspace }}
+      # File store — no MLflow server on the drift runner (avoids localhost:5000 errors during train)
+      MLFLOW_TRACKING_URI: file:./mlruns
+
     steps:
       - uses: actions/checkout@v4
 
@@ -18,12 +28,36 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      - name: Cache DVC pipeline outputs
+        uses: actions/cache@v4
+        id: dvc-artifacts
+        with:
+          path: |
+            data/processed
+            data/splits
+            .dvc/cache
+          key: >-
+            dvc-out-${{ runner.os }}-${{ hashFiles('dvc.lock', 'dvc.yaml',
+            'data/raw/hour.csv.dvc', 'requirements.txt') }}
+
+      - name: Fetch UCI hour.csv
+        run: python scripts/fetch_uci_hour_csv.py
+
+      - name: DVC repro (first run or after lock / deps change)
+        if: steps.dvc-artifacts.outputs.cache-hit != 'true'
+        run: python -m dvc repro
+
       - name: Run monitoring pipeline
         run: python -m monitoring.run_monitoring
-        continue-on-error: true
 
       - name: Upload drift artifacts
         if: always()
@@ -35,4 +69,3 @@ jobs:
             monitoring/evidently_reports/baseline.html
             monitoring/evidently_reports/drift.html
             monitoring/evidently_reports/interpretation.md
-

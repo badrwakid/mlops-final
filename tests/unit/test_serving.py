@@ -1,6 +1,7 @@
 from types import SimpleNamespace
 
 import src.serving.app as serving_app
+from mlflow.exceptions import MlflowException
 
 
 def _cfg(model_path="data/splits/model.pkl"):
@@ -48,7 +49,7 @@ def test_load_model_falls_back_to_local_pickle_when_registry_unavailable(monkeyp
     monkeypatch.setattr(
         serving_app.mlflow.sklearn,
         "load_model",
-        lambda uri: (_ for _ in ()).throw(RuntimeError(f"unavailable: {uri}")),
+        lambda uri: (_ for _ in ()).throw(MlflowException(f"unavailable: {uri}")),
     )
     monkeypatch.setattr(
         serving_app.joblib,

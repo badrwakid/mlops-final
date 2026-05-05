@@ -43,6 +43,7 @@
       - data/splits/preprocessor.pkl
       - src/training/train.py
       - src/training/hpo.py
+      - src/training/registry.py
       - src/evaluation/metrics.py
       - src/features/preprocessor.py
       - src/config.py

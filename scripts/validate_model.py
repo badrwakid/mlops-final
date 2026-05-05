@@ -9,6 +9,7 @@ from pathlib import Path
 
 import mlflow
 import mlflow.sklearn
+from mlflow.exceptions import MlflowException
 from src.config import load_config
 
 
@@ -44,7 +45,7 @@ def main() -> int:
     uri = f"models:/{name}/Production"
     try:
         mlflow.sklearn.load_model(uri)
-    except Exception as exc:
+    except MlflowException as exc:
         print(f"ERROR: could not load registry model {uri}: {exc}", file=sys.stderr)
         return 1
     print(f"OK: loaded registry model {uri}")

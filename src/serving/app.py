@@ -16,6 +16,7 @@ import mlflow.sklearn
 import numpy as np
 import pandas as pd
 from fastapi import FastAPI, HTTPException, Response
+from mlflow.exceptions import MlflowException
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
 from src.config import Config, load_config
@@ -62,7 +63,8 @@ def _load_model(cfg: Config) -> tuple[Any, str]:
     mlflow.set_tracking_uri(_resolve_tracking_uri(cfg))
     try:
         return mlflow.sklearn.load_model(model_uri), "Production"
-    except Exception:
+    except MlflowException as exc:
+        log.warning("MLflow registry load failed; falling back to local pickle: %s", exc)
         return joblib.load(cfg.paths.model), "local"
 
 

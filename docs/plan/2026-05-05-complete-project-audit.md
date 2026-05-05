@@ -10,6 +10,30 @@
 
 **Tech Stack:** Python 3.11, scikit-learn, DVC, MLflow, FastAPI, GitHub Actions, Evidently, Prometheus, pytest, Prefect, Docker Compose, ruff.
 
+**Authoritative grading source:** `Final_Project_2026_MLOPs.pdf` — **Section 6 (Grading Rubric)** defines the **100** base points + **§4 Bonuses** (**+10** Docker, **+10** orchestration) = **120/120**. The matrix below mirrors that section; use the PDF if wording diverges.
+
+---
+
+## External baseline: `MLOPS_AUDITS.zip`
+
+**Path (your machine):** `c:\Users\bigbo\Downloads\MLOPS_AUDITS.zip`
+
+Use this archive as a **prefilled audit bundle** to diff against the repo and to pull missing evidence tasks. **Do not** treat the zip’s older script snapshots as source of truth for code behavior — the **repo** under `scripts/audit/` wins; use the zip for **markdown findings**, **checklist narrative**, and **TDD evidence**.
+
+| Member inside zip | Role | Suggested sync into repo |
+|-------------------|------|---------------------------|
+| `MLOPS_AUDITS/2026-05-05-complete-project-audit.md` | Earlier plan revision (pre–120/120 matrix) | Diff only; **this file** (`docs/plan/2026-05-05-complete-project-audit.md`) supersedes for execution. |
+| `MLOPS_AUDITS/2026-05-05-inventory.txt` | Full path inventory (e.g. **122** unique paths in that run) | Regenerate with `python -m scripts.audit.build_inventory --root . --out docs/audits/2026-05-05-inventory.txt` (add `--no-default-excludes` if you need `mlops-final/`); diff counts vs zip. |
+| `MLOPS_AUDITS/2026-05-05-file-by-file-audit.md` | Deep line-level audit | Merge useful **Line-by-line** bullets into repo `docs/audits/2026-05-05-file-by-file-audit.md` or regenerate from inventory + manual edits. |
+| `MLOPS_AUDITS/2026-05-05-project-checklist.md` | Command transcripts (pytest/ruff/dvc availability) | Merge **Verification Command Outcomes** into `docs/audits/2026-05-05-project-checklist.md` dated subsection. |
+| `MLOPS_AUDITS/2026-05-05-critical-issues.md` | **Expanded** backlog (CI hashes, workflow `continue-on-error`, MLflow fallback, monitoring exit codes, DVC deps, …) | **Task 13** — merge into repo critical-issues doc; implement or consciously defer with scorecard notes. |
+| `MLOPS_AUDITS/2026-05-05-improvements.md` | Non-blocking backlog | Merge into `docs/audits/2026-05-05-improvements.md`. |
+| `MLOPS_AUDITS/2026-05-05-scorecard.md` | Numeric breakdown | Merge / reconcile with repo scorecard. |
+| `MLOPS_AUDITS/2026-05-05-task2-evidence.md` | RED/GREEN + section count verification | Copy to `docs/audits/2026-05-05-task2-evidence.md` if you want permanent TDD proof in Git. |
+| `MLOPS_AUDITS/build_inventory.py` … | Script snapshots | **Ignore** unless diffing behavior; executable code lives in **`scripts/audit/`**. |
+
+**Zip note:** Evidence file references `python scripts/audit/generate_audit_skeleton.py --inventory …` — prefer **`python -m scripts.audit.generate_audit_skeleton`** from repo root (`PYTHONPATH=.`) to match CI and tests.
+
 ---
 
 ## Grading Rubric Coverage Matrix (→ 120/120)
@@ -95,8 +119,15 @@ Expected: PASS.
 
 - [ ] **Step 5: Generate inventory artifact**
 
-Run: `python -m scripts.audit.build_inventory --root . --out docs/audits/2026-05-05-inventory.txt`  
-Expected: file exists; excludes cache dirs listed in `EXCLUDED_DIRS`.
+Run (full tree, sensible excludes — matches tooling in repo):
+
+`python -m scripts.audit.build_inventory --root . --out docs/audits/2026-05-05-inventory.txt`
+
+Optional code-only sibling for lighter audit markdown:
+
+`python -m scripts.audit.build_inventory --root . --out docs/audits/2026-05-05-inventory-code.txt --code-only`
+
+Expected: deterministic sorted paths; implementation details in `scripts/audit/build_inventory.py` (`EXCLUDED_DIR_PARTS`, `DEFAULT_EXCLUDE_PREFIXES`, `.dvc/cache` handling).
 
 - [ ] **Step 6: Commit**
 
@@ -361,12 +392,53 @@ docker compose up prometheus api
 - [ ] Confirm Quickstart installs from clean venv (`python -m venv .venv`, `pip install -r requirements.txt`, then train/serve/docker/prefect optional blocks).
 - [ ] Embed table mapping **screenshot filenames** ↔ **§6 criterion**.
 
+### Task 13: Ingest `MLOPS_AUDITS.zip` findings (merge + reconcile)
+
+**Files:**
+- Modify: `docs/audits/2026-05-05-critical-issues.md`
+- Modify: `docs/audits/2026-05-05-improvements.md`
+- Optional create: `docs/audits/2026-05-05-task2-evidence.md` (copy body from zip)
+
+- [ ] **Step 1: Extract** `c:\Users\bigbo\Downloads\MLOPS_AUDITS.zip` to a temp folder (or browse with Explorer) and open `MLOPS_AUDITS/2026-05-05-critical-issues.md`.
+
+- [ ] **Step 2: Merge numbered items** from the zip (Critical 1–10 in that export) into the repo critical-issues doc **without dropping** existing IDs (**C1–C3** …). Either renumber into one sequence or prefix zip items **`ZIP-C1`** … **`ZIP-C10`**.
+
+- [ ] **Step 3: Per merged item**, add one row in `docs/audits/2026-05-05-project-checklist.md`: PASS after fix / DEFERRED (justify in scorecard).
+
+**Zip-derived fixes to prioritize for rubric honesty (implement where applicable):**
+
+| ID (zip) | Theme | Repo touchpoints |
+|----------|--------|------------------|
+| ZIP-C4 | **Ruff I001** | `scripts/audit/*.py`, `tests/unit/test_scripts.py` — CI runs `ruff check src/ tests/` only; align local check with that or expand CI intentionally. |
+| ZIP-C3 | **DVC provable** | Venv + `python -m dvc dag` / `python -m dvc repro --dry`. |
+| ZIP-C2 | **`monitoring-drift.yml`** | Replace **green-on-failure** semantics (`continue-on-error: true`) with failing the job unless course explicitly wants a noisy weekly ping. |
+| ZIP-C5 | **Serving MLflow load** | `src/serving/app.py` — narrow exceptions; log `MlflowException` before local fallback. |
+| ZIP-C6 | **`run_monitoring` exit codes** | `monitoring/run_monitoring.py` — nonzero exit when required artifacts missing. |
+| ZIP-C8 / ZIP-C9 | **validate_model** exceptions; **dvc train deps** | `scripts/validate_model.py`; add `src/training/registry.py` under `train:` `deps` in `dvc.yaml` if not present. |
+| ZIP-C1 | **Hash-locked `pip install`** | Optional unless PDF requires — else track as improvement. |
+| ZIP-C7 | **Coverage omit** | `pyproject.toml` — ensure critical paths are not omitted if policy requires. |
+| ZIP-C10 | **Root Dockerfile CMD** | **N/A** if serving image is only `docker/api.Dockerfile`; close in scorecard with pointer to that file’s `CMD`. |
+
+- [ ] **Step 4: Commit** (paths = what you actually touched)
+
+```bash
+git add docs/audits/ src/serving/app.py monitoring/run_monitoring.py .github/workflows/monitoring-drift.yml dvc.yaml scripts/validate_model.py pyproject.toml
+git commit -m "fix(audit): close MLOPS_AUDITS zip backlog where applicable"
+```
+
+### Task 14: PDF §6 cross-check (sign-off)
+
+**Files:** `docs/audits/2026-05-05-scorecard.md`
+
+- [ ] Walk **`Final_Project_2026_MLOPs.pdf`** Section 6 **component-by-component** and ensure each row in `docs/audits/2026-05-05-scorecard.md` cites **one concrete** artifact (path or `docs/screenshots/*.png`).
+
 ---
 
-## Self-Review (against §6 Rubric spec)
+## Self-Review (against §6 Rubric spec + zip merge)
 
 ### 1) Spec coverage
-- Each **§6.1 row** mapped in the matrix plus Task 4 checklist and Task 8–12 closes common proof gaps (**remote**, **MLflow export**, **branch protection**, **Compose monitoring**).
+- Each **§6.1 row** mapped in the matrix plus Task 4 checklist and Tasks 8–12 closes common proof gaps (**remote**, **MLflow export**, **branch protection**, **Compose monitoring**).
+- **`MLOPS_AUDITS.zip`** incorporated via **Task 13** (merge critical/improvement backlog) and **Task 14** (PDF sign-off).
 
 ### 2) Placeholder scan
 - Executable steps cite real paths (`docker-compose.yml`, `flows/training_flow.py`, `monitoring/evidently_reports/*.html`).

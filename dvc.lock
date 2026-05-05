@@ -131,6 +131,10 @@ stages:
       hash: md5
       md5: c8fa2cd47fe72bd09696afc5811bc4fe
       size: 2253
+    - path: src/training/registry.py
+      hash: md5
+      md5: 5187a67eb4b38962aadcfb7ad53cb651
+      size: 23807
     - path: src/training/train.py
       hash: md5
       md5: ba51bfdc00e4ff95f4c55d3ea24a7ca0

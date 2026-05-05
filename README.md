@@ -92,7 +92,10 @@ dvc push              # optional: only if you use the DVC remote
 
 Check **API health** (with the stack up): **PowerShell** `Invoke-WebRequest http://localhost:8000/health -UseBasicParsing` or **bash** `curl http://localhost:8000/health`.
 
-**Missing `data/raw/hour.csv`:** Only `hour.csv.dvc` is in Git, so **`dvc repro`** fails until the real file exists. Options: **`dvc pull`** (if your DVC remote/cache has it), or from the repo root run the fetch script (works in **Windows PowerShell 5.x**; do **not** require `pwsh`):
+**Missing `data/raw/hour.csv`:** Only `hour.csv.dvc` is in Git, so **`dvc repro`** fails until the real file exists. Options: **`dvc pull`** (if your DVC remote/cache has it), or fetch from UCI:
+
+- **Linux / macOS / GitHub Actions:** `python scripts/fetch_uci_hour_csv.py` (same MD5 check as the PowerShell script).
+- **Windows PowerShell 5.x** (no `pwsh` required):
 
 ```powershell
 cd <path-to-this-repo>
@@ -112,13 +115,15 @@ python -m dvc repro
 
 **`dvc` stages use the `python` on your PATH** — activate **`.venv`** *before* **`dvc repro`** so `python -m src...` uses the same deps as your venv.
 
+**If you edited `dvc.yaml` deps** (for example adding a file under `train:`): run **`python -m dvc repro`** in that same venv and **commit `dvc.lock`** so reproducibility stays honest.
+
 After **`dvc repro`** completes, **`data/splits/model.pkl`** exists and you can `git add data/splits/model.pkl data/splits/preprocessor.pkl`.
 
 ## Monitoring
 
 - Start observability stack: `docker compose up --build` (API `:8000`, MLflow `:5000`, Prometheus `:9090`).
 - Generate drift reports: `python -m monitoring.run_monitoring`.
-- Scheduled drift job: `.github/workflows/monitoring-drift.yml` runs weekly (and on manual dispatch).
+- Scheduled drift job: `.github/workflows/monitoring-drift.yml` runs weekly (and on manual dispatch). It **downloads `hour.csv`**, restores a **cache** of `data/processed`, `data/splits`, and `.dvc/cache` (keyed by `dvc.lock` / `dvc.yaml`), runs **`python -m dvc repro` only on cache miss** (first run or after pipeline changes), then **`MLFLOW_TRACKING_URI=file:./mlruns`** for training without Docker.
 - Read outputs:
   - `monitoring/evidently_reports/baseline.html`
   - `monitoring/evidently_reports/drift.html`

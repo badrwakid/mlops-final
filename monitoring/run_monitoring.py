@@ -87,8 +87,8 @@ def main() -> None:
         }
         with open(out_dir / "drift_summary.json", "w", encoding="utf-8") as f:
             json.dump(summary, f, indent=2)
-        log.warning("monitoring skipped: missing artifacts: %s", ", ".join(missing))
-        return
+        log.error("monitoring aborted: missing artifacts: %s", ", ".join(missing))
+        raise SystemExit(2)
 
     model = joblib.load(cfg.paths.model)
     preprocessor = joblib.load(cfg.paths.preprocessor)
