@@ -123,4 +123,20 @@ def training_flow():
 
 
 if __name__ == "__main__":
-    training_flow()
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        description="Bike-share training Prefect flow (Bonus B: validate → preprocess → train → evaluate → register).",
+    )
+    parser.add_argument(
+        "command",
+        nargs="?",
+        default="run",
+        choices=("run", "serve"),
+        help="run: execute once; serve: worker with cron schedule (03:00 UTC daily) for Prefect UI runs.",
+    )
+    args = parser.parse_args()
+    if args.command == "serve":
+        training_flow.serve(name="bike-share-training", cron="0 3 * * *", timezone="UTC")
+    else:
+        training_flow()

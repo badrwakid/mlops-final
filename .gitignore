@@ -24,10 +24,14 @@ data/splits/*
 !data/splits/.gitkeep
 !data/splits/*.dvc
 !data/splits/metrics.json
+!data/splits/model.pkl
+!data/splits/preprocessor.pkl
 
 # Models & artifacts
 *.pkl
 *.joblib
+!data/splits/model.pkl
+!data/splits/preprocessor.pkl
 mlruns/
 mlflow.db
 mlartifacts/

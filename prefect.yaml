@@ -1,0 +1,26 @@
+# Prefect ≥2.x — version-controlled deployment for Bonus B (schedulable).
+# Prerequisites: create a process work pool once, e.g.
+#   prefect work-pool create default-process-pool --type process
+# Then from repo root:
+#   prefect deploy --name bike-share-training
+# Or run the worker with an in-code schedule:
+#   python flows/training_flow.py serve
+
+name: bike-share-mlops
+prefect-version: "2.20.25"
+
+pull:
+  - prefect.deployments.steps.set_working_directory:
+      directory: "."
+
+deployments:
+  - name: bike-share-training
+    description: >-
+      Full training pipeline (validate_data → preprocess → train → evaluate → register_model).
+    entrypoint: flows/training_flow.py:training_flow
+    schedule:
+      cron: "0 3 * * *"
+      timezone: UTC
+    tags: [bike-share, training, mlops-bonus-b]
+    work_pool:
+      name: default-process-pool

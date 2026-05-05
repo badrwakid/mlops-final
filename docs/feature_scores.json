@@ -3,7 +3,7 @@
   "all_features_ranked_by_f_score": [
     {
       "feature": "num__temp",
-      "f_score": 1589.9549824099693
+      "f_score": 1589.9549824099706
     },
     {
       "feature": "num__atemp",
@@ -11,15 +11,15 @@
     },
     {
       "feature": "num__hr_sin",
-      "f_score": 1443.4493358373404
+      "f_score": 1443.449335837341
     },
     {
       "feature": "num__hr_cos",
-      "f_score": 1213.9296582338666
+      "f_score": 1213.9296582338668
     },
     {
       "feature": "num__mnth_cos",
-      "f_score": 705.231843963465
+      "f_score": 705.2318439634654
     },
     {
       "feature": "cat__season_1",
@@ -27,15 +27,15 @@
     },
     {
       "feature": "num__hum",
-      "f_score": 551.5693819704962
+      "f_score": 551.5693819704966
     },
     {
       "feature": "cat__season_3",
-      "f_score": 251.3792325018824
+      "f_score": 251.3792325018818
     },
     {
       "feature": "cat__weathersit_3",
-      "f_score": 109.39771435415473
+      "f_score": 109.39771435415469
     },
     {
       "feature": "cat__weathersit_1",
@@ -43,7 +43,7 @@
     },
     {
       "feature": "num__windspeed",
-      "f_score": 48.27923033394421
+      "f_score": 48.279230333944234
     },
     {
       "feature": "cat__season_2",
@@ -51,59 +51,59 @@
     },
     {
       "feature": "num__mnth_sin",
-      "f_score": 28.682383576926526
+      "f_score": 28.682383576926537
     },
     {
       "feature": "cat__season_4",
-      "f_score": 4.027460615171115
+      "f_score": 4.0274606151711225
     },
     {
       "feature": "cat__holiday_0",
-      "f_score": 3.9878305045981404
+      "f_score": 3.987830504598211
     },
     {
       "feature": "cat__holiday_1",
-      "f_score": 3.987830504598117
+      "f_score": 3.9878305045981173
     },
     {
       "feature": "cat__weathersit_2",
-      "f_score": 3.010015830439126
+      "f_score": 3.010015830439116
     },
     {
       "feature": "cat__weekday_3",
-      "f_score": 1.5002267918968792
+      "f_score": 1.5002267918968775
     },
     {
       "feature": "cat__weekday_5",
-      "f_score": 1.3273617607318742
+      "f_score": 1.3273617607318833
     },
     {
       "feature": "cat__workingday_0",
-      "f_score": 1.2676647902296911
+      "f_score": 1.2676647902296816
     },
     {
       "feature": "cat__workingday_1",
-      "f_score": 1.2676647902296707
+      "f_score": 1.2676647902296714
     },
     {
       "feature": "cat__weekday_2",
-      "f_score": 0.7053844781414079
+      "f_score": 0.7053844781414119
     },
     {
       "feature": "cat__weekday_0",
-      "f_score": 0.11607482055055447
+      "f_score": 0.11607482055055246
     },
     {
       "feature": "cat__weekday_6",
-      "f_score": 0.05176551956249247
+      "f_score": 0.05176551956249108
     },
     {
       "feature": "cat__weekday_1",
-      "f_score": 0.025937579248153018
+      "f_score": 0.025937579248152445
     },
     {
       "feature": "cat__weekday_4",
-      "f_score": 0.0003981594808853139
+      "f_score": 0.000398159480885276
     }
   ]
 }
