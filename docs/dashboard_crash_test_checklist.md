@@ -1,39 +1,49 @@
 # Dashboard Crash Test Checklist
 
-Use this checklist during live professor demos to prove the serving app and dashboard are resilient.
+## Visual/UI checks
 
-## Startup
+- [ ] Dashboard loads at `http://localhost:8000/dashboard`
+- [ ] Cards are aligned and readable on a laptop screen
+- [ ] Prediction form is readable and well spaced
+- [ ] Output is visual (cards/charts), not raw JSON blocks
+- [ ] Evidence section is card-based with availability indicators
 
-- [ ] Start API locally and open `http://localhost:8000/`
-- [ ] Open `http://localhost:8000/dashboard`
-- [ ] Open `http://localhost:8000/health`
-- [ ] Open `http://localhost:8000/ready`
-- [ ] Open `http://localhost:8000/metrics`
+## MLflow checks
 
-## Single Prediction
+- [ ] Start stack and open MLflow UI `http://localhost:5000`
+- [ ] Open dashboard and verify MLflow status badges/cards are visible
+- [ ] Stop MLflow and refresh dashboard
+- [ ] Verify dashboard does not crash and MLflow status becomes unavailable
+- [ ] Verify missing model registry does not crash dashboard
+- [ ] Verify missing run metrics/artifacts do not crash dashboard
 
+## Prediction checks
+
+- [ ] Run valid single prediction
+- [ ] Run invalid single prediction (missing required field)
+- [ ] Run wrong type prediction (`hr="bad"`)
+- [ ] Run out-of-range prediction (`temp=1.5`)
+- [ ] Repeatedly click prediction button (loading/disable behavior)
+- [ ] Click **Reset**
 - [ ] Click **Load Safe Demo Example**
-- [ ] Submit valid prediction and verify response shows `prediction`, `confidence`, `model_version`
-- [ ] Submit with an empty required field and verify clean validation error
-- [ ] Submit with wrong type (string for numeric field) and verify clean validation error
-- [ ] Submit out-of-range value (e.g., `temp=1.5`) and verify clean validation error
 
-## Batch Prediction
+## Visualization checks
 
-- [ ] Submit a valid batch (2-3 lines) and verify results table/json appears
-- [ ] Submit empty records list and verify clean validation error
-- [ ] Submit >100 records and verify message: `Batch size cannot exceed 100 records`
+- [ ] Confidence gauge updates after prediction
+- [ ] Feature bars update for `temp`, `atemp`, `hum`, `windspeed`
+- [ ] Hourly scenario chart appears
+- [ ] Batch chart appears
+- [ ] Recent predictions chart updates over runtime
 
-## Failure Scenarios
+## Crash checks
 
-- [ ] Stop MLflow and verify API still responds on `/health` and dashboard loads
-- [ ] Confirm `/ready` reports not ready if model cannot load
-- [ ] Confirm `/predict` and `/predict/batch` return clean `503` when model is unavailable
-- [ ] Temporarily move/remove `monitoring/evidently_reports/drift_summary.json` and verify `/api/drift-summary` returns safe JSON (no crash)
-- [ ] Refresh dashboard several times and verify UI remains stable
-
-## Observability and Evidence
-
-- [ ] Confirm links to MLflow (`http://localhost:5000`) and Prometheus (`http://localhost:9090`) are visible on dashboard
-- [ ] Confirm evidence links (README, technical report, model/data cards, drift reports) are visible
-- [ ] Capture screenshots for dashboard, successful prediction, and validation errors
+- [ ] Empty batch request rejected cleanly
+- [ ] Batch size >100 rejected with clean message
+- [ ] Malformed JSON request returns clean validation error
+- [ ] Missing `drift_summary.json` does not crash dashboard/API
+- [ ] Missing evidence file appears as unavailable, no crash
+- [ ] Model unavailable case keeps dashboard alive and reports not ready
+- [ ] Repeated refresh does not break layout or scripts
+- [ ] `/health` responds
+- [ ] `/ready` responds
+- [ ] `/metrics` responds
