@@ -15,6 +15,10 @@ This report summarizes runtime drift checks produced by `monitoring/run_monitori
 
 Trigger retraining when input drift share exceeds threshold in two consecutive windows; investigate feature pipelines immediately.
 
+## Runtime limitation
+
+Online prediction logs do not include ground-truth targets, so runtime drift checks cover feature drift and prediction drift. Target drift is intentionally skipped until delayed labels are available.
+
 ## Sources
 
 - `/api/drift-summary`

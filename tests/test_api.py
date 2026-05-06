@@ -9,6 +9,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sklearn.dummy import DummyRegressor
 from sklearn.preprocessing import FunctionTransformer
+
 from src.serving.app import LoadedModel, app
 
 VALID_RECORD = {
@@ -226,3 +227,56 @@ def test_mlflow_helper_endpoints_return_safe_json(client):
         assert "available" in payload
         if not payload["available"]:
             assert "message" in payload
+
+
+def test_drift_run_and_latest_endpoints(client, monkeypatch, tmp_path):
+    from src.serving import app as serving_module
+
+    ref_path = tmp_path / "reference.parquet"
+    pred_path = tmp_path / "prediction_log.csv"
+    ref_path.write_text("dummy", encoding="utf-8")
+    rows = ["prediction,season,mnth,hr,holiday,weekday,workingday,weathersit,temp,atemp,hum,windspeed"]
+    rows.extend(["100,2,6,12,0,3,1,1,0.6,0.6,0.4,0.2"] * 35)
+    pred_path.write_text("\n".join(rows) + "\n", encoding="utf-8")
+
+    monkeypatch.setattr(serving_module, "REFERENCE_PATH", ref_path)
+    monkeypatch.setattr(serving_module, "PREDICTION_LOG_PATH", pred_path)
+
+    def _fake_run_and_log(_reference_path, _df, experiment_name="bike_sharing_drift"):  # noqa: ANN001
+        assert experiment_name == "bike_sharing_drift"
+        return {
+            "run_id": "run123",
+            "experiment_id": "exp123",
+            "html_artifact_uri": "runs:/run123/drift/drift_report.html",
+            "summary": {
+                "dataset_drift": True,
+                "drifted_features": 2,
+                "total_features": 12,
+                "share_drifted": 0.167,
+                "generated_at": "2026-01-01T00:00:00Z",
+            },
+        }
+
+    monkeypatch.setattr(serving_module, "run_and_log", _fake_run_and_log)
+    monkeypatch.setattr(
+        serving_module,
+        "_latest_drift_run",
+        lambda: {
+            "available": True,
+            "run_id": "run123",
+            "experiment_id": "exp123",
+            "summary": {"dataset_drift": True, "drifted_features": 2, "total_features": 12},
+        },
+    )
+
+    run_resp = client.post("/api/drift/run")
+    assert run_resp.status_code == 200
+    payload = run_resp.json()
+    assert payload["run_id"] == "run123"
+    assert "summary" in payload
+
+    latest_resp = client.get("/api/drift/latest")
+    assert latest_resp.status_code == 200
+    latest_payload = latest_resp.json()
+    assert latest_payload["available"] is True
+    assert latest_payload["run_id"] == "run123"

@@ -178,6 +178,13 @@ def main() -> None:
                 registered_model_name=cfg.mlflow.registered_model_name,
             )
             mlflow.log_artifact(cfg.paths.preprocessor, artifact_path="preprocessor")
+            reference_path = Path("artifacts/reference.parquet")
+            reference_path.parent.mkdir(parents=True, exist_ok=True)
+            reference_df = train_features.copy()
+            reference_df[cfg.data.target] = y_train.values
+            reference_df["prediction"] = model.predict(x_train)
+            reference_df.to_parquet(reference_path, index=False)
+            mlflow.log_artifact(str(reference_path), artifact_path="drift")
 
         _persist_artifacts_if_gate_passes(
             test_metrics,

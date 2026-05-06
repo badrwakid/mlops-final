@@ -1,6 +1,6 @@
 PYTHON ?= python
 
-.PHONY: repro train baseline monitor verify
+.PHONY: repro train baseline monitor drift-report verify
 
 repro:
 	$(PYTHON) -m dvc repro
@@ -13,6 +13,9 @@ baseline:
 
 monitor:
 	$(PYTHON) -m monitoring.run_monitoring
+
+drift-report:
+	$(PYTHON) -c "from src.drift_report import run_and_log; import pandas as pd; df = pd.read_csv('artifacts/prediction_log.csv').tail(500); print(run_and_log('artifacts/reference.parquet', df))"
 
 verify:
 	$(PYTHON) scripts/validate_model.py
