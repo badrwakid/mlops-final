@@ -141,9 +141,9 @@ After **`dvc repro`** completes, **`data/splits/model.pkl`** exists and you can 
   - `GET /ready` readiness (model/preprocessor loaded)
   - `GET /metrics` Prometheus scrape
 
-## Dashboard & Crash-Proof Interface
+## MLflow Dashboard & Visualization Interface
 
-- Dashboard URL: `http://localhost:8000/` (also `http://localhost:8000/dashboard`)
+- Dashboard URL: `http://localhost:8000/dashboard` (also `http://localhost:8000/`)
 - Prediction endpoints:
   - `POST /predict`
   - `POST /predict/batch`
@@ -155,6 +155,22 @@ After **`dvc repro`** completes, **`data/splits/model.pkl`** exists and you can 
 - Platform links:
   - MLflow: `http://localhost:5000`
   - Prometheus: `http://localhost:9090`
+
+Included visualizations:
+
+- Confidence gauge
+- Normalized input feature bars (`temp`, `atemp`, `hum`, `windspeed`)
+- Hourly scenario chart (predicted demand by `hr`)
+- Batch prediction bar chart (+ min/max/avg stats)
+- Recent predictions trend chart (runtime in-memory history)
+
+MLflow-focused dashboard features:
+
+- MLflow server status card and connectivity badge
+- Experiment tracking overview endpoint integration
+- Latest runs and model metrics API integration
+- Model registry status/version integration
+- Artifact listing endpoint integration
 
 Crash-proofing highlights:
 

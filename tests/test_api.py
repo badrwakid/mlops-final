@@ -103,7 +103,8 @@ def test_dashboard_routes_and_helper_endpoints(client):
     for path in ("/", "/dashboard"):
         response = client.get(path)
         assert response.status_code == 200
-        assert "Bike Sharing Demand MLOps Dashboard" in response.text
+        assert "Bike Sharing Demand" in response.text
+        assert "MLflow" in response.text
 
     status = client.get("/api/status")
     assert status.status_code == 200
@@ -122,6 +123,22 @@ def test_dashboard_routes_and_helper_endpoints(client):
     payload = summary.json()
     assert "runtime" in payload
     assert "drift" in payload
+
+    css = client.get("/static/dashboard.css")
+    assert css.status_code == 200
+    assert "text/css" in css.headers.get("content-type", "")
+
+    js = client.get("/static/dashboard.js")
+    assert js.status_code == 200
+    assert "javascript" in js.headers.get("content-type", "")
+
+    evidence = client.get("/api/evidence-status")
+    assert evidence.status_code == 200
+    assert isinstance(evidence.json().get("items"), list)
+
+    recent = client.get("/api/recent-predictions")
+    assert recent.status_code == 200
+    assert "items" in recent.json()
 
 
 def test_predict_missing_fields_and_wrong_types(client):
@@ -174,3 +191,38 @@ def test_drift_endpoint_safe_when_file_missing(client, monkeypatch):
     payload = response.json()
     assert payload["available"] is False
     assert "not found" in payload["message"].lower()
+
+
+def test_scenario_endpoints(client):
+    hourly = client.post("/api/scenario/hourly", json=VALID_RECORD)
+    assert hourly.status_code == 200
+    hourly_body = hourly.json()
+    if hourly_body["available"]:
+        assert len(hourly_body["points"]) == 24
+    else:
+        assert "message" in hourly_body
+
+    weather = client.post("/api/scenario/weather", json=VALID_RECORD)
+    assert weather.status_code == 200
+    weather_body = weather.json()
+    if weather_body["available"]:
+        assert len(weather_body["points"]) == 4
+    else:
+        assert "message" in weather_body
+
+
+def test_mlflow_helper_endpoints_return_safe_json(client):
+    for path in (
+        "/api/mlflow/status",
+        "/api/mlflow/experiment",
+        "/api/mlflow/latest-runs",
+        "/api/mlflow/model-registry",
+        "/api/mlflow/model-metrics",
+        "/api/mlflow/artifacts",
+    ):
+        response = client.get(path)
+        assert response.status_code == 200
+        payload = response.json()
+        assert "available" in payload
+        if not payload["available"]:
+            assert "message" in payload
