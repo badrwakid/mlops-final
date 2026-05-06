@@ -141,6 +141,30 @@ After **`dvc repro`** completes, **`data/splits/model.pkl`** exists and you can 
   - `GET /ready` readiness (model/preprocessor loaded)
   - `GET /metrics` Prometheus scrape
 
+## Dashboard & Crash-Proof Interface
+
+- Dashboard URL: `http://localhost:8000/` (also `http://localhost:8000/dashboard`)
+- Prediction endpoints:
+  - `POST /predict`
+  - `POST /predict/batch`
+- System endpoints:
+  - `GET /health`
+  - `GET /ready`
+  - `GET /live`
+  - `GET /metrics`
+- Platform links:
+  - MLflow: `http://localhost:5000`
+  - Prometheus: `http://localhost:9090`
+
+Crash-proofing highlights:
+
+- Startup is resilient: if model loading fails, the API remains alive and dashboard still loads.
+- Prediction endpoints return clean `503` when model/preprocessor is unavailable.
+- Validation protects malformed payloads and out-of-range values with clean `422` responses.
+- Batch predictions enforce a max of 100 records (`Batch size cannot exceed 100 records`).
+- Drift summary and dashboard helper endpoints return safe JSON even when files are missing.
+- See `docs/dashboard_crash_test_checklist.md` for live-demo robustness checks.
+
 ## Documentation
 
 - `docs/technical_report.md` — pipeline evidence (includes DVC DAG figure)
