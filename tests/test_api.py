@@ -9,7 +9,6 @@ import pytest
 from fastapi.testclient import TestClient
 from sklearn.dummy import DummyRegressor
 from sklearn.preprocessing import FunctionTransformer
-
 from src.serving.app import LoadedModel, app
 
 VALID_RECORD = {

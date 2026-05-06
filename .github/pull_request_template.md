@@ -1,3 +1,18 @@
+## Rubric impact
+
+- [ ] Reproducibility
+- [ ] Documentation
+- [ ] Testing
+- [ ] Model/serving behavior
+- [ ] Monitoring/operations
+- [ ] No rubric impact
+
+## Validation checklist
+
+- [ ] Local tests pass for touched scope
+- [ ] Docs and examples updated if behavior changed
+- [ ] No secrets or large artifacts added
+- [ ] Linked issue is included
 ## Title (Conventional Commits)
 
 Use the same style as commit messages and PRs on `main`:
@@ -9,7 +24,7 @@ Use the same style as commit messages and PRs on `main`:
 
 ## Branch
 
-- [ ] This PR is from a **short-lived** branch named `feature/<component-slug>` (not from `main` and not long-lived).
+- [ ] This PR is from a **short-lived** branch named `task/<id>-<short-name>` (not from `main` and not long-lived).
 - [ ] Suggested slugs (examples): `component-2-3-train`, `component-4-5-serve-ci`, `component-6-monitoring`, `bonus-docker-prefect`, `component-7-docs`.
 
 ## Summary
