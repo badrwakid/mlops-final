@@ -7,7 +7,6 @@ from pathlib import Path
 import pytest
 from packaging.requirements import InvalidRequirement, Requirement
 
-
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 REQUIRED_FILES = [

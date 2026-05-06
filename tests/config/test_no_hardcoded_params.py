@@ -3,7 +3,6 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-
 REPO_ROOT = Path(__file__).resolve().parents[2]
 REQUIREMENTS_PATH = REPO_ROOT / "requirements.txt"
 RUNTIME_SOURCE_DIRS = (
