@@ -107,3 +107,43 @@ def test_run_hpo_uses_pipeline_with_preprocessor_when_factory_is_provided(monkey
     assert [name for name, _ in estimator.steps] == ["preprocessor", "model"]
     assert isinstance(estimator.named_steps["preprocessor"], StandardScaler)
     assert estimator.named_steps["model"].random_state == 123
+
+
+def test_run_hpo_supports_hist_gradient_boosting(monkeypatch):
+    captured = {}
+
+    class DummyRun:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc_value, traceback):
+            return False
+
+    def fake_cross_val_score(estimator, X, y, cv, scoring, n_jobs):
+        captured["estimator"] = estimator
+        return np.array([-4.0, -4.0])
+
+    monkeypatch.setattr(hpo_module.mlflow, "start_run", lambda **kwargs: DummyRun())
+    monkeypatch.setattr(hpo_module.mlflow, "log_params", lambda params: None)
+    monkeypatch.setattr(hpo_module.mlflow, "log_metrics", lambda metrics: None)
+    monkeypatch.setattr(hpo_module.mlflow, "log_metric", lambda key, value, step=None: None)
+    monkeypatch.setattr(hpo_module, "cross_val_score", fake_cross_val_score)
+
+    run_hpo(
+        np.arange(24).reshape(12, 2),
+        np.arange(12),
+        {
+            "max_iter": [200],
+            "learning_rate": [0.05],
+            "max_depth": [8],
+            "max_leaf_nodes": [31],
+            "min_samples_leaf": [20],
+            "l2_regularization": [0.0],
+        },
+        n_trials=1,
+        cv_folds=2,
+        model_type="hist_gradient_boosting",
+        random_state=123,
+    )
+
+    assert captured["estimator"].__class__.__name__ == "HistGradientBoostingRegressor"

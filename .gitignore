@@ -24,14 +24,13 @@ data/splits/*
 !data/splits/.gitkeep
 !data/splits/*.dvc
 !data/splits/metrics.json
-!data/splits/model.pkl
 !data/splits/preprocessor.pkl
 
-# Models & artifacts
+# Models & artifacts (train writes locally; do not commit large pickles)
 *.pkl
 *.joblib
-!data/splits/model.pkl
 !data/splits/preprocessor.pkl
+artifacts/
 mlruns/
 mlflow.db
 mlartifacts/
