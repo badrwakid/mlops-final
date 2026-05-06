@@ -1,0 +1,277 @@
+---
+description: Visual and behavioral rules for the Bike Sharing MLOps dashboard front-end
+globs: ["static/**", "templates/**", "frontend/**", "src/**/*.{html,tsx,jsx,ts,js,css}"]
+alwaysApply: true
+---
+
+# Dashboard UI rules
+
+You are editing the front-end of a FastAPI + ML serving app. The backend, model serving, MLflow integration, and `/metrics` endpoint already work — never touch them. Only edit HTML, CSS, JS/TS, and small client-side helpers.
+
+The design target: an internal tool a senior ML engineer would actually use. Restrained, dense, monochromatic. Not a tutorial template.
+
+## Files you may edit
+
+- Main HTML/JSX template (entry point)
+- CSS / Tailwind config / styled-components
+- JS/TS rendering logic for the prediction form, batch panel, history table, monitoring panel
+
+## Files you must not edit
+
+- `app.py`, `main.py`, FastAPI route handlers
+- Model loading or MLflow code
+- Prometheus or `/metrics` plumbing
+- Anything in `models/`, `data/`, `notebooks/`
+
+## Stack discipline
+
+- If the project uses a framework, keep using it. Don't introduce React if it's vanilla. Don't introduce Tailwind if it's plain CSS.
+- Don't add dependencies unless the project already uses them.
+
+---
+
+## Color tokens (use these everywhere)
+
+```css
+:root {
+  --bg:           #0B0D10;   /* page */
+  --surface:      #13161A;   /* cards */
+  --surface-2:    #1A1E24;   /* nested / inputs */
+  --border:       #1F242B;   /* hairlines, 0.5px */
+  --border-2:     #2A3038;   /* hover */
+  --text:         #E6E8EB;   /* primary */
+  --text-2:       #8A929C;   /* secondary */
+  --text-3:       #5A626C;   /* tertiary, axis labels */
+  --accent:       #8FB3FF;   /* periwinkle — single accent */
+  --accent-dim:   #5C7FCC;   /* accent on hover/pressed */
+  --ok:           #3FB950;
+  --warn:         #D29922;
+  --bad:          #F85149;
+}
+```
+
+`--accent` is used **only** for: the primary "Predict" button, the line stroke in the hour chart, the bars in the weather/batch charts, and the confidence progress bar. Nowhere else.
+
+## Typography
+
+- Body: `Inter, -apple-system, system-ui, sans-serif`
+- Mono: `'JetBrains Mono', ui-monospace, Menlo, monospace` — only for endpoint paths, latency numbers, model IDs, JSON
+- Two font weights only: `400` and `500`. Never `600` or `700`.
+- Sentence case everywhere. Never `MODEL READY`, never `BATCH PREDICTION`. Write `Model ready`, `Batch prediction`.
+- All displayed numbers get `font-variant-numeric: tabular-nums;`.
+
+## Sizing scale
+
+- Card titles: `13px / 500`
+- Body: `12px / 400`
+- Section eyebrows ("WHEN", "CONDITIONS"): `10px / 500`, `letter-spacing: 0.06em`, `text-transform: uppercase`, color `--text-2`
+- KPI numbers: `26px–34px / 500`, `line-height: 1`
+- Borders: always `0.5px solid var(--border)`
+- Card radius: `8px`. Buttons and inputs: `6px`. Never larger than `12px` on cards.
+- Card padding: `14px`. Grid gaps: `10–14px`.
+- Page max-width `1280px`, centered, `24px` horizontal padding. Section vertical gap `16px`.
+
+## Hard "don'ts" (these are the AI tells)
+
+- No emoji. No icon libraries unless already in use.
+- No `box-shadow` except a 1px focus ring on inputs.
+- No gradient backgrounds anywhere.
+- No status badges as colored pills with white text. Use a 6px dot + label.
+- No `border-radius` larger than 12px on cards.
+- No equal-width 3-column or 4-column grids for content of unequal importance.
+- No placeholder helper text on self-explanatory fields.
+- No animations beyond `transition: 120ms` on hover for buttons and inputs.
+- No tooltips with paragraph-length text.
+- No logo, no theme toggle, no settings panel, no login screen.
+
+---
+
+## Number formatting
+
+Apply these helpers to every displayed number. Never show raw floats.
+
+```js
+const fmtInt  = (n) => Math.round(n).toLocaleString();
+const fmtPct  = (x) => `${Math.round(x * 100)}%`;          // x in 0..1
+const fmtMs   = (n) => `${Math.round(n)} ms`;
+const fmtConf = (x) => x >= 0.8 ? 'High' : x >= 0.6 ? 'Medium' : 'Low';
+```
+
+Never display:
+- More than 1 decimal in the UI
+- Raw normalized inputs (0.62 etc.) — convert to real units first
+- ALL CAPS labels
+- Latency to 2 decimal places (`237.87 ms` → `238 ms`)
+
+## Form ↔ model unit conversion
+
+The model expects normalized 0–1 floats for `temp`, `atemp`, `hum`, `windspeed`. The user sees real units. Convert silently in the submit handler:
+
+```js
+const TEMP_MIN_C = -8, TEMP_MAX_C = 39;
+const ATEMP_MIN_C = -16, ATEMP_MAX_C = 50;
+const WIND_MAX_KMH = 67;
+
+const payload = {
+  season, mnth, hr, holiday, weekday, workingday, weathersit,
+  temp:      (temp_c  - TEMP_MIN_C)  / (TEMP_MAX_C  - TEMP_MIN_C),
+  atemp:     (atemp_c - ATEMP_MIN_C) / (ATEMP_MAX_C - ATEMP_MIN_C),
+  hum:       hum_pct / 100,
+  windspeed: wind_kmh / WIND_MAX_KMH,
+};
+```
+
+Form labels must use human words (`Hour`, `Humidity`, `Wind`) and human units (`23 °C`, `14 km/h`, `45%`). Never raw column names (`hr`, `hum`, `windspeed`) or raw 0–1 floats.
+
+---
+
+## Layout — top to bottom
+
+### Section A — Header strip
+
+One row, `padding: 16px 0`, `border-bottom: 0.5px solid var(--border)`.
+
+- Left: title `Bike sharing demand` (15px/500), subtitle `MLOps serving · v1 · local` (11px/400, `--text-2`).
+- Right: a single inline row of four status indicators, each = `<dot> Label`. Dots: 6px circle. `--ok` for API/Model/MLflow, `--warn` for Registry. Gap 14px. Font 11px, color `--text-2`.
+
+Remove the four chunky pill badges entirely.
+
+### Section B — KPI strip (4 cards, asymmetric)
+
+Grid: `grid-template-columns: 1.6fr 1fr 1fr 1fr; gap: 8px;`
+
+| Card     | Label              | Value                       | Sub                          |
+| -------- | ------------------ | --------------------------- | ---------------------------- |
+| 1 (wide) | Latest prediction  | `<rounded int>` rentals/hr  | inline sparkline of last ≤20 |
+| 2        | Confidence         | `<int>%`                    | "High" / "Medium" / "Low"    |
+| 3        | Avg latency        | `<int> ms`                  | `p95 · <int>`                |
+| 4        | Predictions today  | `<int>`                     | `N batch · M single`         |
+
+- Bg `--surface-2`. No border. Radius 8px. Padding 12px.
+- Number font-size: 26px in card 1, 22px in others.
+- Sparkline in card 1: 18px tall, accent stroke 1.5px, dot at the latest point.
+
+Remove the existing 11-tile strip. Move Experiment, Registered Model, and Model Version into the result panel under a "Model" subsection.
+
+### Section C — Single prediction (1.5fr) + Result (1fr)
+
+Both cards: `border: 0.5px solid var(--border)`, radius 12px, padding 14px, transparent bg.
+
+**Single prediction (left)** — two grouped sub-sections with eyebrow labels:
+
+- **WHEN** — 3 cols: Season, Month, Hour (0–23). Below: Day, Holiday (toggle), Working day (toggle).
+- **CONDITIONS** — 2×2: Weather (Clear / Mist + cloudy / Light rain or snow / Heavy rain or snow), Humidity (slider %), Temp (slider °C), Wind (slider km/h).
+- Buttons: `Predict` (primary, accent bg, dark text) + `Load sample` (secondary, transparent + border). No "Reset".
+
+**Result (right)** — stacked:
+
+1. Eyebrow `Predicted demand` (11px, `--text-2`)
+2. Big number `<int>` (34px/500) + `rentals/hr` (11px, `--text-2`)
+3. `Confidence` label, 4px-tall progress bar (track `--border`, fill `--accent`, width = confidence%), % shown right
+4. Hairline divider
+5. Three label/value rows in mono: Latency (ms), Model (`v1 · local`), `vs typical <weekday> <hour>` (+/-% delta in `--ok` or `--bad`)
+
+Remove the half-donut gauge entirely. Remove the four horizontal bars showing input features as percentages — they're inputs, not outputs.
+
+### Section D — Two charts side by side (1fr 1fr)
+
+**D1 — Predicted demand by hour**
+
+Title + subtitle `<month> · <weather> · <day type>` (auto from form).
+
+Behavior: on Predict, fetch 24 predictions (hours 0–23) with the rest of the form held constant.
+
+SVG spec:
+- viewBox `0 0 600 240`
+- Y axis: 0 to ceil(max/100)*100, three tick labels (0, mid, max), 9px, `--text-3`
+- X axis: ticks at 0h, 6h, 12h, 18h, 24h
+- One faint dashed gridline at midpoint
+- Line: `stroke: var(--accent); stroke-width: 1.5; fill: none`
+- Filled circle at the selected hour with `<int> now` label
+- No legend, no SVG-internal title, no decoration
+
+**D2 — Demand by weather**
+
+Title + subtitle `Same hour · same day · varying weather`.
+
+Behavior: 4 predictions (weather 1–4), everything else from the form held constant.
+
+SVG spec:
+- Same axis treatment as D1
+- Bars: width 40px, gap 20px, fill `--accent`. Opacity 0.95 for selected weather, 0.55 for others.
+- Value (rounded int) above each bar in `--text` 9px
+- X labels: `Clear`, `Mist`, `Light rain`, `Heavy`. Append ` (now)` to the active one.
+
+### Section E — Batch prediction (full width)
+
+Title row: `Batch prediction` + counter `<n> / 100 lines` right.
+
+Two-column grid (1fr 1fr):
+
+**Left — input**
+- Eyebrow `JSON input · one object per line`
+- Textarea: mono, 11px, padding 8px, height 110px, bg `--surface-2`, border 0.5px `--border`, radius 6px
+- Buttons: `Run` (primary), `Load sample` (secondary)
+
+**Right — result chart**
+- Eyebrow `Predicted rentals/hour`
+- SVG bar chart with real y-axis (0 to ceil(max/100)*100, three ticks), 0.5px gridline at midpoint, x-axis labeled with the **hour** of each prediction (from input row's `hr` field — not `1, 2, 3`)
+- Bars: 40px wide, accent fill, value (int) printed above
+- 9–20 predictions: drop value labels, 12px-wide bars
+- 20+ predictions: just the line connecting bar tops
+
+Below the two-column area, a results table (12px font, mono numbers, hairline row separators):
+
+`# | Hour | Prediction | Confidence | Latency`
+
+Remove the existing batch chart that renders 3 same-size blue squares.
+
+### Section F — History (1.4fr) + Service health (1fr)
+
+**History (left)** — title `Recent predictions`, sparkline 40px tall at top (accent line), then table:
+
+`Time | Hour | Prediction | Confidence | Latency`
+
+- Time in mono, `HH:mm:ss`
+- Newest first, max 10 rows
+- Hairline row separators only. No zebra striping. No card-in-card.
+
+Fold the standalone floating sparkline into this card.
+
+**Service health (right)** — title + counter `<up> / <total> up` right. Rows: `<dot> <Service name>` left, `<endpoint>` (mono, `--accent`) right. That's it.
+
+Remove the chunky 2×4 grid of green/red rectangles.
+
+### Section G — Evidence (full width)
+
+Card shell. Title `Evidence` + counter `<available> / <total>` right.
+
+Two sub-sections in the card, separated by a hairline:
+
+- **AVAILABLE** (eyebrow): one row per file/endpoint, `✓ <name>` (12px, `--ok` check, `--text` name). Linkable if URL exists.
+- **PENDING** (eyebrow — not "MISSING"): a single comma- or middle-dot-separated line in `--text-2`, 11px, `line-height: 1.7`. Not 7 individual red boxes.
+
+This is the most important visual change in the whole dashboard. The 8 red tiles make the project look broken. A muted single line says "to-do" without screaming.
+
+---
+
+## Acceptance criteria
+
+After your changes, the dashboard must satisfy all of:
+
+1. Exactly 4 KPI cards in the top strip, not 11.
+2. Latest prediction shown as a rounded integer (`452`), never a 10-decimal float.
+3. No half-donut gauge anywhere.
+4. No horizontal bars on the result panel showing input features as percentages.
+5. Batch chart has a real y-axis with tick labels, x-axis labeled with each prediction's hour, value labels above each bar — never 3 same-height blue squares.
+6. Form labels are human words (`Hour`, `Humidity`, `Wind`) with human units (`23 °C`, `14 km/h`, `45%`). Never raw column names or 0–1 floats.
+7. Evidence shows `<n> of <total> available` with a quiet pending list. Never red `missing` tiles.
+8. Single accent color `#8FB3FF`. No cyan/blue/green/amber/red mixed.
+9. Exactly two font weights (400, 500), sentence case throughout.
+10. No gradients, drop shadows, glow effects, or pill badges.
+
+If any criterion fails, redo that section before moving on.
+
+## When in doubt
+
+Pick the more restrained option.
