@@ -24,7 +24,10 @@ from mlflow.tracking import MlflowClient
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
 from src.config import Config, load_config
+from src.drift_report import run_and_log
+from src.prediction_log import log_prediction
 from src.serving.metrics import (
+    DATA_DRIFT_FLAG,
     FEATURE_HR,
     FEATURE_TEMP,
     INFERENCE_COUNT,
@@ -45,6 +48,9 @@ from src.serving.schemas import (
 log = logging.getLogger(__name__)
 ROOT_DIR = Path(__file__).resolve().parents[2]
 DRIFT_SUMMARY_PATH = ROOT_DIR / "monitoring" / "evidently_reports" / "drift_summary.json"
+REFERENCE_PATH = ROOT_DIR / "artifacts" / "reference.parquet"
+PREDICTION_LOG_PATH = ROOT_DIR / "artifacts" / "prediction_log.csv"
+DRIFT_EXPERIMENT_NAME = "bike_sharing_drift"
 DASHBOARD_URL = "/dashboard"
 MAX_BATCH_SIZE = 100
 RECENT_HISTORY_LIMIT = 20
@@ -182,6 +188,38 @@ def _drift_summary() -> dict[str, Any]:
         return {"available": False, "message": "Failed to read drift summary"}
 
 
+def _latest_drift_run() -> dict[str, Any]:
+    try:
+        client, _tracking_uri = _mlflow_client_and_uri()
+        exp = client.get_experiment_by_name(DRIFT_EXPERIMENT_NAME)
+        if exp is None:
+            return {"available": False, "message": "Drift experiment not found"}
+        runs = client.search_runs([exp.experiment_id], max_results=1, order_by=["start_time DESC"])
+        if not runs:
+            return {"available": False, "message": "No drift runs yet"}
+        run = runs[0]
+        generated_at = run.data.tags.get("generated_at")
+        if not generated_at and run.info.start_time:
+            generated_at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(run.info.start_time / 1000))
+        summary = {
+            "dataset_drift": str(run.data.tags.get("dataset_drift", "False")).lower() == "true",
+            "drifted_features": int(run.data.metrics.get("drifted_features", 0)),
+            "total_features": int(run.data.metrics.get("total_features", 0)),
+            "share_drifted": float(run.data.metrics.get("share_drifted", 0.0)),
+            "generated_at": generated_at,
+        }
+        return {
+            "available": True,
+            "run_id": run.info.run_id,
+            "experiment_id": exp.experiment_id,
+            "html_artifact_uri": f"runs:/{run.info.run_id}/drift/drift_report.html",
+            "summary": summary,
+        }
+    except Exception:
+        log.exception("failed to fetch latest drift run")
+        return {"available": False, "message": "MLflow tracking server is not reachable"}
+
+
 def _record_history(
     *,
     input_payload: dict[str, Any],
@@ -210,6 +248,8 @@ def _evidence_items() -> list[dict[str, Any]]:
         ("Technical Report", ROOT_DIR / "docs" / "technical_report.md", "/docs/technical_report.md"),
         ("Model Card", ROOT_DIR / "docs" / "model_card.md", "/docs/model_card.md"),
         ("Data Card", ROOT_DIR / "docs" / "data_card.md", "/docs/data_card.md"),
+        ("Baseline Report (Markdown)", ROOT_DIR / "docs" / "baseline_report.md", "/docs/baseline_report.md"),
+        ("Drift Report (Markdown)", ROOT_DIR / "docs" / "drift_report.md", "/docs/drift_report.md"),
         ("Drift Report", ROOT_DIR / "monitoring" / "evidently_reports" / "drift.html", "/monitoring/evidently_reports/drift.html"),
         ("Baseline Report", ROOT_DIR / "monitoring" / "evidently_reports" / "baseline.html", "/monitoring/evidently_reports/baseline.html"),
         ("Drift Summary", ROOT_DIR / "monitoring" / "evidently_reports" / "drift_summary.json", "/monitoring/evidently_reports/drift_summary.json"),
@@ -392,6 +432,11 @@ def _dashboard_html() -> str:
         <h2>Evidence</h2>
         <span id="evidenceCount" class="subtle mono">0 / 0</span>
       </div>
+      <div class="row-head" style="margin-top:8px">
+        <div class="eyebrow no-gap">Drift dashboard (Evidently via MLflow)</div>
+        <button id="runDriftBtn" class="btn-secondary">Run drift check</button>
+      </div>
+      <div id="evidenceDrift" class="subtle"></div>
       <div class="eyebrow">Available</div>
       <div id="evidenceAvailable"></div>
       <div class="divider"></div>
@@ -451,15 +496,17 @@ function renderStatus(summary){const healthOk=summary.health&&summary.health.sta
 function renderKPIs(summary,recent){const run=summary.runtime||{},latest=run.latest_prediction==null?"—":fmtInt(run.latest_prediction),conf=Number(run.latest_confidence||0),avg=run.avg_latency_ms==null?"—":fmtMs(run.avg_latency_ms),p95=recent.length?fmtMs([...recent.map(r=>Number(r.latency_ms||0))].sort((a,b)=>a-b)[Math.floor(0.95*(recent.length-1))]):"—",total=fmtInt(run.total_predictions||0),subCount=`${fmtInt(state.batchCount)} batch · ${fmtInt(state.singleCount)} single`;byId("kpiGrid").innerHTML=`<div class="kpi"><div class="label">Latest prediction</div><div class="value big">${latest} <span class="sub">rentals/hr</span></div><div id="kpiSpark" class="spark-inline"></div></div><div class="kpi"><div class="label">Confidence</div><div class="value">${fmtPct(conf)}</div><div class="sub">${fmtConf(conf)}</div></div><div class="kpi"><div class="label">Avg latency</div><div class="value">${avg}</div><div class="sub">p95 · ${p95}</div></div><div class="kpi"><div class="label">Predictions today</div><div class="value">${total}</div><div class="sub">${subCount}</div></div>`;drawSpark(byId("kpiSpark"),recent.map(r=>Number(r.prediction||0)).slice(-20))}
 function renderServices(summary){const ml=summary.mlflow||{},rows=[{name:"Health",ok:summary.health&&summary.health.status==="ok",endpoint:"/health"},{name:"Readiness",ok:summary.ready&&summary.ready.available,endpoint:"/ready"},{name:"MLflow",ok:!!ml.available,endpoint:"http://localhost:5000"}],up=rows.filter(r=>r.ok).length;byId("serviceCount").textContent=`${up} / ${rows.length} up`;byId("serviceRows").innerHTML=rows.map(r=>`<div class="service-row"><span class="service-name"><span class="dot" style="background:${r.ok?"var(--ok)":"var(--bad)"}"></span>${r.name}</span><span class="endpoint">${r.endpoint}</span></div>`).join("")}
 function renderEvidence(items){const available=items.filter(i=>i.exists),pending=items.filter(i=>!i.exists);byId("evidenceCount").textContent=`${available.length} of ${items.length} available`;byId("evidenceAvailable").innerHTML=available.map(i=>`<div class="ev-row"><span class="check">✓</span>${i.url?`<a href="${i.url}" target="_blank">${i.name}</a>`:i.name}</div>`).join("")||'<div class="subtle">No evidence available.</div>';byId("evidencePending").textContent=pending.length?pending.map(i=>i.name).join(" · "):"None"}
+async function refreshDriftStatus(){const target=byId("evidenceDrift");target.textContent="";try{const latest=await request("/api/drift/latest");if(!latest.available){target.textContent="Drift report pending.";return}const s=latest.summary||{};const row=document.createElement("div");row.className="ev-row";const check=document.createElement("span");check.className="check";check.textContent="✓";const info=document.createElement("span");info.textContent=`Drift report ready · last run ${s.generated_at||"unknown"} · ${s.drifted_features||0}/${s.total_features||0} features drifted`;const sep=document.createTextNode(" · ");const link=document.createElement("a");link.target="_blank";link.rel="noopener noreferrer";link.href=`http://localhost:5000/#/experiments/${latest.experiment_id}/runs/${latest.run_id}/artifactPath/drift/drift_report.html`;link.textContent="Open report";row.appendChild(check);row.appendChild(info);row.appendChild(sep);row.appendChild(link);target.appendChild(row)}catch(_err){target.textContent="Drift report pending.";}}
+async function runDrift(){const btn=byId("runDriftBtn");const original=btn.textContent;btn.disabled=true;btn.textContent="Running...";try{await request("/api/drift/run",{method:"POST"});await refreshDriftStatus()}catch(err){byId("evidenceDrift").textContent=String(err)}finally{btn.disabled=false;btn.textContent=original}}
 function renderRecent(items){const top=items.slice(0,10),tbody=byId("recentTable").querySelector("tbody");if(!top.length){tbody.innerHTML="";setMsg("recentMsg","No predictions yet.");byId("recentSpark").innerHTML="";return}setMsg("recentMsg","");tbody.innerHTML=top.map(it=>`<tr><td class="mono">${it.timestamp||"—"}</td><td>${it.input_summary&&it.input_summary.hr!=null?it.input_summary.hr:"—"}</td><td class="mono">${fmtInt(it.prediction)}</td><td class="mono">${fmtPct(it.confidence)}</td><td class="mono">${fmtMs(it.latency_ms)}</td></tr>`).join("");drawSpark(byId("recentSpark"),top.slice().reverse().map(it=>Number(it.prediction||0)))}
-async function refresh(){try{const [summary,recent,evidence]=await Promise.all([request("/api/dashboard-summary"),request("/api/recent-predictions"),request("/api/evidence-status")]);const items=(recent.items||[]).slice().reverse();renderStatus(summary);renderKPIs(summary,recent.items||[]);renderRecent(items);renderServices(summary);renderEvidence(evidence.items||[])}catch(err){setMsg("singleError",String(err))}}
+async function refresh(){try{const [summary,recent,evidence]=await Promise.all([request("/api/dashboard-summary"),request("/api/recent-predictions"),request("/api/evidence-status")]);const items=(recent.items||[]).slice().reverse();renderStatus(summary);renderKPIs(summary,recent.items||[]);renderRecent(items);renderServices(summary);renderEvidence(evidence.items||[]);await refreshDriftStatus()}catch(err){setMsg("singleError",String(err))}}
 function updateResult(out,payload,latencyMs,summary){const prediction=Math.round(Number(out.prediction||0)),conf=Number(out.confidence||0);byId("predValue").textContent=fmtInt(prediction);byId("confPct").textContent=fmtPct(conf);byId("confFill").style.width=fmtPct(conf);byId("latencyVal").textContent=fmtMs(latencyMs);byId("modelVal").textContent=`${out.model_version||"v1"} · ${summary.mlflow&&summary.mlflow.available?"mlflow":"local"}`;const baseline=Math.max(1,prediction*0.9),delta=(prediction-baseline)/baseline,sign=delta>=0?"+":"";byId("deltaLabel").textContent=`vs typical ${weekdayNames[payload.weekday]} ${String(payload.hr).padStart(2,"0")}:00`;byId("deltaVal").textContent=`${sign}${Math.round(delta*100)}%`;byId("deltaVal").style.color=delta>=0?"var(--ok)":"var(--bad)";const ml=summary.mlflow||{};byId("expVal").textContent=ml.experiment_name||"Unavailable";byId("registryVal").textContent=ml.registered_model_name||"Unavailable";byId("versionVal").textContent=ml.current_model_version||out.model_version||"Unavailable"}
 async function runPredict(){const btn=byId("predictBtn");btn.disabled=true;setMsg("singleError","");try{const payload=toPayload(),t0=performance.now(),out=await request("/predict",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)}),elapsed=performance.now()-t0;state.singleCount+=1;const summary=await request("/api/dashboard-summary");updateResult(out,payload,elapsed,summary);byId("hourlySubtitle").textContent=`${monthNames[payload.mnth-1]} · ${weatherLabels[payload.weathersit]} · ${payload.workingday?"Working day":"Non-working day"}`;try{const hourly=await request("/api/scenario/hourly",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});if(hourly.available){drawLineChart(byId("hourlyChart"),hourly.points,payload.hr);setMsg("hourlyMsg","")}else setMsg("hourlyMsg",hourly.message||"Scenario unavailable")}catch(err){setMsg("hourlyMsg",String(err))}try{const weather=await request("/api/scenario/weather",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});if(weather.available){drawBarChart(byId("weatherChart"),weather.points.map(p=>({label:`${weatherLabels[p.weathersit]}${p.weathersit===payload.weathersit?" (now)":""}`,value:p.prediction,active:p.weathersit===payload.weathersit})));setMsg("weatherMsg","")}else setMsg("weatherMsg",weather.message||"Scenario unavailable")}catch(err){setMsg("weatherMsg",String(err))}await refresh()}catch(err){setMsg("singleError",String(err))}finally{btn.disabled=false}}
 function parseBatch(){const lines=byId("batchInput").value.split("\\n").map(s=>s.trim()).filter(Boolean);byId("batchCounter").textContent=`${lines.length} / 100 lines`;if(!lines.length)throw new Error("Batch cannot be empty.");if(lines.length>100)throw new Error("Batch size cannot exceed 100 records.");return lines.map(l=>JSON.parse(l))}
 async function runBatch(){setMsg("batchError","");try{const records=parseBatch(),t0=performance.now(),out=await request("/predict/batch",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({records})}),latency=(performance.now()-t0)/Math.max(records.length,1),preds=out.predictions||[];state.batchCount+=records.length;byId("batchTable").querySelector("tbody").innerHTML=preds.map((p,i)=>`<tr><td>${i+1}</td><td>${records[i].hr}</td><td class="mono">${fmtInt(p.prediction)}</td><td class="mono">${fmtPct(p.confidence)}</td><td class="mono">${fmtMs(latency)}</td></tr>`).join("");drawBarChart(byId("batchChart"),preds.map((p,i)=>({label:String(records[i].hr),value:p.prediction,active:true})));const vals=preds.map(p=>Number(p.prediction||0)),avg=vals.reduce((a,b)=>a+b,0)/Math.max(vals.length,1);byId("batchStats").textContent=`count ${fmtInt(vals.length)} · min ${fmtInt(Math.min(...vals))} · max ${fmtInt(Math.max(...vals))} · avg ${fmtInt(avg)} · model ${out.model_version||"v1"}`;await refresh()}catch(err){setMsg("batchError",String(err))}}
 function loadSample(){byId("season").value=sampleHuman.season;byId("mnth").value=sampleHuman.mnth;byId("hr").value=sampleHuman.hr;byId("weekday").value=sampleHuman.weekday;byId("holiday").checked=!!sampleHuman.holiday;byId("workingday").checked=!!sampleHuman.workingday;byId("weathersit").value=sampleHuman.weathersit;byId("hum_pct").value=sampleHuman.hum_pct;byId("temp_c").value=sampleHuman.temp_c;byId("wind_kmh").value=sampleHuman.wind_kmh;byId("hum_pct_v").textContent=`${sampleHuman.hum_pct}%`;byId("temp_c_v").textContent=`${sampleHuman.temp_c} °C`;byId("wind_kmh_v").textContent=`${sampleHuman.wind_kmh} km/h`}
 function loadSampleBatch(){const toNorm=(h)=>({season:h.season,mnth:h.mnth,hr:h.hr,holiday:h.holiday,weekday:h.weekday,workingday:h.workingday,weathersit:h.weathersit,temp:(h.temp_c-TEMP_MIN_C)/(TEMP_MAX_C-TEMP_MIN_C),atemp:(h.atemp_c-ATEMP_MIN_C)/(ATEMP_MAX_C-ATEMP_MIN_C),hum:h.hum_pct/100,windspeed:h.wind_kmh/WIND_MAX_KMH});const items=[sampleHuman,{...sampleHuman,hr:8,temp_c:14,atemp_c:16,hum_pct:72,weathersit:3},{...sampleHuman,hr:18,temp_c:26,atemp_c:29,hum_pct:40,weathersit:1}].map(toNorm);byId("batchInput").value=items.map(v=>JSON.stringify(v)).join("\\n");byId("batchCounter").textContent=`${items.length} / 100 lines`}
-renderForm();loadSample();loadSampleBatch();byId("predictBtn").addEventListener("click",runPredict);byId("demoBtn").addEventListener("click",loadSample);byId("batchBtn").addEventListener("click",runBatch);byId("sampleBatchBtn").addEventListener("click",loadSampleBatch);byId("batchInput").addEventListener("input",()=>{const n=byId("batchInput").value.split("\\n").map(s=>s.trim()).filter(Boolean).length;byId("batchCounter").textContent=`${n} / 100 lines`});refresh();
+renderForm();loadSample();loadSampleBatch();byId("predictBtn").addEventListener("click",runPredict);byId("demoBtn").addEventListener("click",loadSample);byId("batchBtn").addEventListener("click",runBatch);byId("sampleBatchBtn").addEventListener("click",loadSampleBatch);byId("runDriftBtn").addEventListener("click",runDrift);byId("batchInput").addEventListener("input",()=>{const n=byId("batchInput").value.split("\\n").map(s=>s.trim()).filter(Boolean).length;byId("batchCounter").textContent=`${n} / 100 lines`});refresh();
 })();
 """
 
@@ -716,6 +763,53 @@ def evidence_status() -> dict[str, Any]:
     return {"available": True, "items": _evidence_items()}
 
 
+@app.get("/api/drift/latest")
+def drift_latest() -> dict[str, Any]:
+    return _latest_drift_run()
+
+
+@app.post("/api/drift/run")
+def drift_run() -> dict[str, Any]:
+    if not PREDICTION_LOG_PATH.exists():
+        raise HTTPException(status_code=400, detail="No predictions logged yet")
+    if not REFERENCE_PATH.exists():
+        raise HTTPException(status_code=400, detail="Reference dataset missing: run training first")
+    df = pd.read_csv(PREDICTION_LOG_PATH).tail(500)
+    if len(df) < 30:
+        raise HTTPException(status_code=400, detail=f"Need >=30 predictions, have {len(df)}")
+    result = run_and_log(str(REFERENCE_PATH), df, experiment_name=DRIFT_EXPERIMENT_NAME)
+    summary = result.get("summary", {})
+    DATA_DRIFT_FLAG.set(1.0 if summary.get("dataset_drift") else 0.0)
+    return result
+
+
+@app.get("/api/evidence")
+def evidence_manifest() -> dict[str, Any]:
+    items = _evidence_items()
+    return {
+        "available": True,
+        "count": len(items),
+        "available_count": sum(1 for item in items if item["exists"]),
+        "items": items,
+    }
+
+
+@app.get("/api/evidence/{artifact_name}")
+def evidence_file(artifact_name: str):
+    mapping = {
+        "readme": "README.md",
+        "technical_report": "docs/technical_report.md",
+        "model_card": "docs/model_card.md",
+        "data_card": "docs/data_card.md",
+        "baseline_report": "docs/baseline_report.md",
+        "drift_report": "docs/drift_report.md",
+        "drift_summary": "monitoring/evidently_reports/drift_summary.json",
+    }
+    if artifact_name not in mapping:
+        raise HTTPException(status_code=404, detail="artifact not found")
+    return _safe_file_response(mapping[artifact_name])
+
+
 @app.get("/api/recent-predictions")
 def recent_predictions() -> dict[str, Any]:
     items = list(getattr(app.state, "recent_predictions", []))
@@ -835,6 +929,7 @@ def predict(record: BikeRecord) -> PredictResponse:
         latency_ms=latency_s * 1000.0,
         model_version=loaded.model_version,
     )
+    log_prediction(record.model_dump(), item.prediction)
     return PredictResponse(
         prediction=item.prediction,
         confidence=item.confidence,
@@ -895,6 +990,7 @@ def predict_batch(request: BatchPredictRequest) -> BatchPredictResponse:
                 latency_ms=(latency_s * 1000.0) / max(len(items), 1),
                 model_version=loaded.model_version,
             )
+            log_prediction(record.model_dump(), item.prediction)
     return BatchPredictResponse(predictions=items, model_version=loaded.model_version)
 
 

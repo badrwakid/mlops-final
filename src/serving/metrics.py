@@ -41,3 +41,7 @@ DRIFT_PSI = Gauge(
     "Per-feature drift proxy from latest batch Evidently run (1.0 drift, 0.0 no drift)",
     ["feature"],
 )
+DATA_DRIFT_FLAG = Gauge(
+    "data_drift_flag",
+    "Latest Evidently dataset drift flag (1 drift, 0 no drift)",
+)
