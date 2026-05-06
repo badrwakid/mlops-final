@@ -4,8 +4,8 @@ import csv
 import re
 from pathlib import Path
 
-from packaging.requirements import InvalidRequirement, Requirement
 import pytest
+from packaging.requirements import InvalidRequirement, Requirement
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]

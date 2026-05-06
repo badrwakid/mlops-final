@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from pathlib import Path
 import re
+from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -14,9 +14,10 @@ RUNTIME_SOURCE_DIRS = (
 
 EXACT_PIN_RE = re.compile(r"^[A-Za-z0-9_.-]+(?:\[[A-Za-z0-9_,.-]+\])?==[^=\s]+$")
 
-KEYWORD_FAMILY_RE = re.compile(r"\b(?:r2|rmse|drift|threshold|limit|gate)\w*\b", flags=re.IGNORECASE)
-GATE_WORD_RE = re.compile(r"\b(?:threshold|limit|gate)\w*\b", flags=re.IGNORECASE)
-METRIC_WORD_RE = re.compile(r"\b(?:r2|rmse|drift)\w*\b", flags=re.IGNORECASE)
+KEYWORD_FAMILY_RE = re.compile(
+    r"\b(?:threshold|limit|gate|min_test_r2|rmse_threshold|drift_threshold_share)\w*\b",
+    flags=re.IGNORECASE,
+)
 NUMERIC_ASSIGNMENT_RE = re.compile(r"(?:=|:=)\s*-?\d+(?:\.\d+)?\b")
 NUMERIC_COMPARISON_RE = re.compile(r"(?:<=|>=|<|>|==|!=)\s*-?\d+(?:\.\d+)?\b")
 
@@ -56,11 +57,7 @@ def _looks_like_hardcoded_threshold_line(code_line: str) -> bool:
     if not has_numeric_gate:
         return False
 
-    lowered = code_line.lower()
-    if "drift" in lowered and "r2" not in lowered and "rmse" not in lowered:
-        return bool(GATE_WORD_RE.search(code_line))
-
-    return bool(METRIC_WORD_RE.search(code_line))
+    return bool(KEYWORD_FAMILY_RE.search(code_line))
 
 
 def test_obvious_runtime_thresholds_are_not_hardcoded() -> None:
