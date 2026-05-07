@@ -25,6 +25,21 @@ def main() -> int:
         print(f"ERROR: metrics file not found: {metrics_path}", file=sys.stderr)
         return 1
 
+    require_local_artifacts = os.environ.get("REQUIRE_LOCAL_MODEL_ARTIFACTS", "").lower() in {
+        "1",
+        "true",
+        "yes",
+    }
+    if require_local_artifacts:
+        required = [Path(cfg.paths.model), Path(cfg.paths.preprocessor), metrics_path]
+        missing = [str(path) for path in required if not path.is_file()]
+        if missing:
+            print(
+                "ERROR: required local model artifacts are missing: " + ", ".join(missing),
+                file=sys.stderr,
+            )
+            return 1
+
     rmse = _load_rmse(metrics_path)
     ceiling = cfg.validation.rmse_threshold
     if rmse >= ceiling:
@@ -36,7 +51,7 @@ def main() -> int:
     print(f"OK: test RMSE {rmse:.6f} < rmse_threshold {ceiling:.6f}")
 
     if os.environ.get("SKIP_MLFLOW_REGISTRY", "").lower() in {"1", "true", "yes"}:
-        print("SKIP_MLFLOW_REGISTRY set: skipping Production model load")
+        print("SKIP_MLFLOW_REGISTRY set: skipping Production model load (validation is partial)")
         return 0
 
     tracking = os.environ.get("MLFLOW_TRACKING_URI", cfg.mlflow.tracking_uri)

@@ -5,28 +5,28 @@ stages:
     deps:
     - path: configs/params.yaml
       hash: md5
-      md5: 4be1c6ad295e0b62916d4acd6cddbf9a
-      size: 2044
+      md5: 3b66b058fa346a20596bcced139e1853
+      size: 2231
     - path: data/raw/hour.csv
       hash: md5
       md5: d50bd5a6f55131e72a7bedc334e2fce1
       size: 1156736
     - path: src/config.py
       hash: md5
-      md5: d2e3cc9446e756ad23e2000a39b87517
-      size: 1907
+      md5: 9fc3e894667fd9d75daf1178507ffe09
+      size: 2023
     - path: src/data/load.py
       hash: md5
-      md5: a53dae174bf3a6c2b9d4ac336b17b529
-      size: 239
+      md5: e0eb44474a56688f25886be034a4ff3b
+      size: 228
     - path: src/data/prepare.py
       hash: md5
       md5: 10e9c232f697382ae9360a20ff03897b
       size: 554
     - path: src/data/schema.py
       hash: md5
-      md5: 669249dd62eb28a173ad7eaab5b3f216
-      size: 1089
+      md5: b17d756e2eba5ad21b062e61fcffca61
+      size: 1064
     outs:
     - path: data/processed/bike_clean.parquet
       hash: md5
@@ -37,25 +37,25 @@ stages:
     deps:
     - path: configs/params.yaml
       hash: md5
-      md5: 4be1c6ad295e0b62916d4acd6cddbf9a
-      size: 2044
+      md5: 3b66b058fa346a20596bcced139e1853
+      size: 2231
     - path: data/processed/bike_clean.parquet
       hash: md5
       md5: d0b59acb7d5653e35d754ef01eaa039a
       size: 93550
     - path: src/config.py
       hash: md5
-      md5: d2e3cc9446e756ad23e2000a39b87517
-      size: 1907
+      md5: 9fc3e894667fd9d75daf1178507ffe09
+      size: 2023
     - path: src/data/split.py
       hash: md5
-      md5: febc2c7ef51cb878fab2d6ccf73085f3
-      size: 2901
+      md5: bdfb8dd47421835b6c1cff83bb7a5ca5
+      size: 2589
     outs:
     - path: data/splits/production.parquet
       hash: md5
-      md5: 5fc3539850693ee657235e088549f3b6
-      size: 127117
+      md5: 6bd44944dee9a8443879ce7e006a96fd
+      size: 53130
     - path: data/splits/reference.parquet
       hash: md5
       md5: 2103a51ea5a39c418b91f0e994c1c6d2
@@ -73,39 +73,39 @@ stages:
     deps:
     - path: configs/params.yaml
       hash: md5
-      md5: 4be1c6ad295e0b62916d4acd6cddbf9a
-      size: 2044
+      md5: 3b66b058fa346a20596bcced139e1853
+      size: 2231
     - path: data/splits/train.parquet
       hash: md5
       md5: 6224f2f9fc0357d6707091fe906a5884
       size: 53139
     - path: src/config.py
       hash: md5
-      md5: d2e3cc9446e756ad23e2000a39b87517
-      size: 1907
+      md5: 9fc3e894667fd9d75daf1178507ffe09
+      size: 2023
     - path: src/features/featurize.py
       hash: md5
-      md5: 560b5a3c4d8a302870492cd413b883e8
-      size: 1277
+      md5: 4fb5051b75c40b8315f210a3cd66b7fe
+      size: 1239
     - path: src/features/preprocessor.py
       hash: md5
-      md5: 6461ce9092546d309ea9b8476cc8a485
-      size: 5249
+      md5: 1cc130d1d837b5f4fc8540d2221f2455
+      size: 5100
     outs:
     - path: data/splits/preprocessor.pkl
       hash: md5
-      md5: 0d85b84fb055fe98c4d9de21eb5349ee
+      md5: ef942e154d4eea5d71498a899b31c964
       size: 4911
   train:
     cmd: python -m src.training.train
     deps:
     - path: configs/params.yaml
       hash: md5
-      md5: 4be1c6ad295e0b62916d4acd6cddbf9a
-      size: 2044
+      md5: 3b66b058fa346a20596bcced139e1853
+      size: 2231
     - path: data/splits/preprocessor.pkl
       hash: md5
-      md5: 0d85b84fb055fe98c4d9de21eb5349ee
+      md5: ef942e154d4eea5d71498a899b31c964
       size: 4911
     - path: data/splits/test.parquet
       hash: md5
@@ -117,30 +117,30 @@ stages:
       size: 53139
     - path: src/config.py
       hash: md5
-      md5: d2e3cc9446e756ad23e2000a39b87517
-      size: 1907
+      md5: 9fc3e894667fd9d75daf1178507ffe09
+      size: 2023
     - path: src/evaluation/metrics.py
       hash: md5
       md5: 801c80843373b8593cef9a227e24e846
       size: 397
     - path: src/features/preprocessor.py
       hash: md5
-      md5: 6461ce9092546d309ea9b8476cc8a485
-      size: 5249
+      md5: 1cc130d1d837b5f4fc8540d2221f2455
+      size: 5100
     - path: src/training/hpo.py
       hash: md5
       md5: c8fa2cd47fe72bd09696afc5811bc4fe
       size: 2253
-    - path: src/training/registry.py
-      hash: md5
-      md5: 5187a67eb4b38962aadcfb7ad53cb651
-      size: 23807
     - path: src/training/train.py
       hash: md5
       md5: ba51bfdc00e4ff95f4c55d3ea24a7ca0
       size: 7118
     outs:
+    - path: data/splits/metrics.json
+      hash: md5
+      md5: 4a7ba726d93df65d1e02ad2d7d7575e8
+      size: 346
     - path: data/splits/model.pkl
       hash: md5
-      md5: 02e29ba88711f7eda26a5a8b50fbe15b
+      md5: 902da7098f31e20b23161f116d9871ed
       size: 48990001

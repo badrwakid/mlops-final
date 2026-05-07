@@ -47,6 +47,9 @@ drift:
   perturb_windspeed_noise_std: 0.05
   drift_threshold_share: 0.20
   perturbed_features: [temp, hum, windspeed]
+  # Synthetic drift is demo-only: does not change training/evaluation/production inputs.
+  generate_synthetic_demo_report: false
+  synthetic_demo_report_name: drift_synthetic_demo.html
 
 serving:
   model_name: bike_share_regressor

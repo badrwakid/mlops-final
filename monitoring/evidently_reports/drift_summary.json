@@ -1,13 +1,16 @@
 {
+  "monitoring_mode": "operational",
+  "synthetic_demo_report_generated": false,
+  "synthetic_demo_report_name": "drift_synthetic_demo.html",
   "alert": true,
-  "drift_share": 0.44590303699862804,
-  "drift_share_inputs_only": 0.45454545454545453,
+  "drift_share": 0.22433929298122746,
+  "drift_share_weighted_inputs": 0.22433929298122746,
+  "drift_share_inputs_only": 0.2727272727272727,
+  "drift_share_inputs_only_unweighted": 0.2727272727272727,
   "drifted_features": [
     "hum",
     "season",
-    "temp",
-    "weathersit",
-    "windspeed"
+    "weathersit"
   ],
   "excluded_from_share": [
     "prediction",
@@ -16,5 +19,6 @@
   ],
   "threshold": 0.2,
   "severity": "P2",
-  "policy": "Trigger retraining when input drift_share exceeds threshold in 2 consecutive windows; investigate feature pipelines immediately."
+  "policy": "Trigger retraining when input drift_share exceeds threshold in 2 consecutive windows; investigate feature pipelines immediately.",
+  "policy_note": "Consecutive-window enforcement requires external run history/state."
 }

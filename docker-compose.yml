@@ -5,8 +5,9 @@ services:
       dockerfile: docker/mlflow.Dockerfile
     image: bike-mlflow:latest
     container_name: mlflow
+    restart: unless-stopped
     ports:
-      - "5000:5000"
+      - "127.0.0.1:5000:5000"
     volumes:
       - mlflow-data:/mlflow
     healthcheck:
@@ -21,24 +22,28 @@ services:
       dockerfile: docker/api.Dockerfile
     image: bike-api:latest
     container_name: api
+    restart: unless-stopped
     depends_on:
       mlflow:
         condition: service_healthy
     environment:
       MLFLOW_TRACKING_URI: http://mlflow:5000
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
 
   prometheus:
     image: prom/prometheus:v2.53.0
     container_name: prometheus
+    restart: unless-stopped
     depends_on:
       api:
         condition: service_healthy
     ports:
-      - "9090:9090"
+      - "127.0.0.1:9090:9090"
     volumes:
       - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
 
 volumes:
   mlflow-data:
+  prometheus-data:
