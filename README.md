@@ -133,7 +133,7 @@ dvc push              # optional: only if you use the DVC remote
 
 **Prefect quick reminders:** `python flows/training_flow.py` (one-off); `python flows/training_flow.py serve` (cron worker); `prefect.yaml` + **`prefect deploy --prefect-file prefect.yaml`** after creating **`default-process-pool`** (details in that section).
 
-**DVC storage:** The default remote `localremote` targets **`../dvc-storage`** (one directory **above** the repo — see `.dvc/config`; that folder is gitignored). Create `dvc-storage` there if missing, then run `dvc pull` / `dvc push` / `dvc repro` as needed. To point the remote at something else (for example `./dvc-storage` inside the repo):  
+**DVC storage:** The default remote `localremote` targets **`../dvc-storage`** (resolved from `.dvc/config`, so it maps to `./dvc-storage` at the repo root). Create `dvc-storage` if missing, then run `dvc pull` / `dvc push` / `dvc repro` as needed. To point the remote at something else, update the URL accordingly:  
 `dvc remote modify localremote url .\dvc-storage` (PowerShell) or adjust the URL to match your layout.
 
 Check **API health** (with the stack up): **PowerShell** `Invoke-WebRequest http://localhost:8000/health -UseBasicParsing` or **bash** `curl http://localhost:8000/health`.
