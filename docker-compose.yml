@@ -7,7 +7,8 @@ services:
     container_name: mlflow
     restart: unless-stopped
     ports:
-      - "127.0.0.1:5000:5000"
+      # Host :5000 is often taken (local MLflow); map UI to :5001 on localhost.
+      - "127.0.0.1:5001:5000"
     volumes:
       - mlflow-data:/mlflow
     healthcheck:
@@ -28,8 +29,14 @@ services:
         condition: service_healthy
     environment:
       MLFLOW_TRACKING_URI: http://mlflow:5000
+      MLFLOW_PUBLIC_UI_URL: http://localhost:5001
+      # Hard production: MLflow Production only (no pickle fallback); process exits if model/preprocessor load fails.
+      PRODUCTION_STRICT: "true"
     ports:
       - "127.0.0.1:8000:8000"
+    # Share artifact store with mlflow so registry URIs under /mlflow/mlruns resolve inside the API container.
+    volumes:
+      - mlflow-data:/mlflow
 
   prometheus:
     image: prom/prometheus:v2.53.0

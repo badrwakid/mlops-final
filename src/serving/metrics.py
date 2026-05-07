@@ -20,6 +20,10 @@ MODEL_VERSION = Gauge(
     "Currently loaded model version label",
     ["version"],
 )
+MODEL_REGISTRY_SATISFIED = Gauge(
+    "bike_model_registry_load_satisfied",
+    "1 if inference model was loaded from MLflow Production registry, else 0 (fallback or local-only override)",
+)
 INFERENCE_COUNT = Counter(
     "bike_inference_total",
     "Inference count by endpoint, model version, and predicted output class "

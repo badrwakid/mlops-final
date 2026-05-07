@@ -1,35 +1,18 @@
 ---
-name: Task (component / milestone)
-about: Track work that maps to a component, phase, or feature branch
-title: "task(component): "
-labels: ""
-assignees: ""
+name: Task or bug
+about: Track coursework tasks, bugs, or team discussion (project management evidence).
+title: ""
+labels: []
 ---
 
-## Component / phase
+## Context
 
-<!-- e.g. Component 2+3 (preprocessing + MLflow), Phase 4–5 (serving + CI), Component 6 (monitoring), Bonus, Docs -->
+What problem or goal does this issue cover?
 
-## Goal
+## Acceptance criteria
 
-<!-- What “done” looks like in one paragraph. -->
+- [ ]
 
-## Feature branch (when applicable)
+## Notes
 
-<!-- Naming convention: feature/<component-slug> -->
-
-- Branch: `feature/`
-
-## Scope
-
-- [ ] <!-- bullet tasks -->
-
-## Definition of done
-
-- [ ] Meets rubric / plan for this component.
-- [ ] Tests and lint pass locally where relevant (`pytest`, `ruff`).
-- [ ] Linked PR uses **Conventional Commits** and will **Closes #** this issue when merged.
-
-## Notes / links
-
-<!-- Design notes, MLflow run IDs, DVC stage names, etc. -->
+Assignees, links to PRs, and decisions go here.

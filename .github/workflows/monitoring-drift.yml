@@ -28,6 +28,9 @@ jobs:
       - name: Pull missing monitoring artifacts from DVC (if needed)
         env:
           DVC_REMOTE_URL: ${{ secrets.DVC_REMOTE_URL }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
         run: |
           if [ -f data/splits/model.pkl ] && [ -f data/splits/preprocessor.pkl ] && [ -f data/splits/reference.parquet ] && [ -f data/splits/production.parquet ]; then
             echo "monitoring artifacts already present"

@@ -60,7 +60,7 @@ def main() -> int:
     uri = f"models:/{name}/Production"
     try:
         mlflow.sklearn.load_model(uri)
-    except MlflowException as exc:
+    except (MlflowException, OSError) as exc:
         print(f"ERROR: could not load registry model {uri}: {exc}", file=sys.stderr)
         return 1
     print(f"OK: loaded registry model {uri}")

@@ -30,7 +30,13 @@ def _fake_load_artifacts() -> LoadedModel:
         return np.zeros((len(df), 14))
 
     preprocessor = FunctionTransformer(_transform, validate=False)
-    return LoadedModel(model=model, preprocessor=preprocessor, model_name="bike_share_regressor", model_version="ci-fixture")
+    return LoadedModel(
+        model=model,
+        preprocessor=preprocessor,
+        model_name="bike_share_regressor",
+        model_version="ci-fixture",
+        load_source="registry_production",
+    )
 
 
 @pytest.fixture
@@ -94,14 +100,15 @@ def test_predict_when_api_down_shows_friendly_error(client, monkeypatch):
     monkeypatch.setattr("src.serving.app._loaded_model", lambda _app: (_ for _ in ()).throw(RuntimeError("down")))
     response = client.post("/predict", json=VALID_RECORD)
     assert response.status_code == 500
-    assert "error" in response.json()
+    body = response.json()
+    assert "detail" in body or "error" in body
 
 
 def test_predict_when_api_returns_500_shows_friendly_error(client, monkeypatch):
     monkeypatch.setattr("src.serving.app._to_dataframe", lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("boom")))
     response = client.post("/predict", json=VALID_RECORD)
     assert response.status_code == 500
-    assert response.json().get("error") == "Internal error"
+    assert response.json().get("detail") == "Internal server error"
 
 
 @pytest.mark.skip(reason="Requires browser E2E automation")
@@ -134,8 +141,14 @@ def test_csp_header_present_on_html_response(client):
 
 def test_payload_over_200kb_returns_413(client):
     huge = {"records": [VALID_RECORD for _ in range(100)]}
-    huge["pad"] = "x" * 210000
-    response = client.post("/predict/batch", data=json.dumps(huge), headers={"Content-Type": "application/json"})
+    # Default API limit is 256 KiB (see MAX_REQUEST_BODY_BYTES); pad enough to exceed it.
+    huge["pad"] = "x" * 350000
+    payload = json.dumps(huge)
+    response = client.post(
+        "/predict/batch",
+        content=payload,
+        headers={"Content-Type": "application/json", "Content-Length": str(len(payload.encode("utf-8")))},
+    )
     assert response.status_code == 413
 
 

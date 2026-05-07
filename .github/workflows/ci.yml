@@ -106,6 +106,10 @@ jobs:
       - name: Pull missing raw artifact from DVC (if needed)
         env:
           DVC_REMOTE_URL: ${{ secrets.DVC_REMOTE_URL }}
+          # Required when DVC_REMOTE_URL is an S3 bucket (create IAM user with read access; never commit keys).
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
         run: |
           if [ -f data/raw/hour.csv ]; then
             echo "raw artifact already present"
@@ -168,6 +172,9 @@ jobs:
       - name: Pull missing model artifacts from DVC (if needed)
         env:
           DVC_REMOTE_URL: ${{ secrets.DVC_REMOTE_URL }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
         run: |
           if [ -f data/splits/model.pkl ] && [ -f data/splits/preprocessor.pkl ] && [ -f data/splits/metrics.json ]; then
             echo "model artifacts already present"
@@ -219,21 +226,31 @@ jobs:
           from src.config import load_config
 
           cfg = load_config()
-          mlflow.set_tracking_uri("http://127.0.0.1:5000")
+          uri = "http://127.0.0.1:5000"
+          mlflow.set_tracking_uri(uri)
           mlflow.set_experiment("ci-model-validation")
           model = joblib.load(cfg.paths.model)
+          name = cfg.mlflow.registered_model_name
+          client = MlflowClient(tracking_uri=uri)
 
-          with mlflow.start_run(run_name="ci-seed-production-model"):
-              model_info = mlflow.sklearn.log_model(
+          with mlflow.start_run(run_name="ci-seed-production-model") as run:
+              mlflow.sklearn.log_model(
                   model,
                   artifact_path="model",
-                  registered_model_name=cfg.mlflow.registered_model_name,
+                  registered_model_name=name,
               )
+              run_id = run.info.run_id
 
-          version = model_info.registered_model_version
-          client = MlflowClient(tracking_uri="http://127.0.0.1:5000")
+          version = None
+          for mv in client.search_model_versions(f"name='{name}'"):
+              if mv.run_id == run_id:
+                  version = mv.version
+                  break
+          if version is None:
+              raise SystemExit("could not resolve registered model version for ci seed run")
+
           client.transition_model_version_stage(
-              name=cfg.mlflow.registered_model_name,
+              name=name,
               version=version,
               stage="Production",
               archive_existing_versions=True,
