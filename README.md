@@ -2,7 +2,52 @@
 
 End-to-end MLOps pipeline for predicting hourly bike rental counts (UCI Bike Sharing dataset).
 
-## Quickstart
+## Architecture overview
+
+- **Training and reproducibility:** DVC orchestrates data prep, training, and artifact generation (`python -m dvc repro`).
+- **Serving:** FastAPI app serves predictions and health/metrics endpoints on port `8000`.
+- **Tracking and observability:** MLflow tracks experiments; Prometheus scrapes service metrics.
+
+## Quickstart (rubric path)
+
+Prerequisite (fresh clone): create and activate a virtual environment first (see [Troubleshooting and detailed setup](#troubleshooting-and-detailed-setup) for exact setup steps).
+Run from the repository root:
+
+```powershell
+python -m pip install -r requirements.txt
+python -m dvc repro
+python -m uvicorn src.serving.app:app --host 0.0.0.0 --port 8000
+```
+
+Fresh clone (self-contained):
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
+python -m dvc repro
+python -m uvicorn src.serving.app:app --host 0.0.0.0 --port 8000
+```
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+python -m dvc repro
+python -m uvicorn src.serving.app:app --host 0.0.0.0 --port 8000
+```
+
+Health check:
+
+```powershell
+Invoke-WebRequest http://localhost:8000/health -UseBasicParsing
+```
+
+```bash
+curl http://localhost:8000/health
+```
+
+## Troubleshooting and detailed setup
 
 Use a virtual environment (recommended). From the repository root:
 
@@ -50,6 +95,7 @@ py -3.12 -m venv .venv   # or: python -m venv .venv
 
 4. If locks persist: add **`MLOPS_Project`** (or move the repo to e.g. **`C:\dev\MLOPS_Project`**, outside **Downloads/OneDrive**), or temporarily **exclude** `.venv` from real-time antivirus scanning.  
 5. Prefer a **3.11+** interpreter consistent with **`docker/api.Dockerfile`** (`python:3.11.9-slim`) when possible.
+
 
 **MLflow and Docker (two different stories):**
 
@@ -141,6 +187,55 @@ After **`dvc repro`** completes, **`data/splits/model.pkl`** exists and you can 
   - `GET /ready` readiness (model/preprocessor loaded)
   - `GET /metrics` Prometheus scrape
 
+## Streamlit Dashboard
+
+Purpose: a demo-ready Streamlit interface for live prediction, batch scoring, MLflow visibility, monitoring, and documentation evidence.
+
+Local run:
+
+```powershell
+python -m pip install -r requirements.txt
+python -m pip install -r requirements-streamlit.txt
+python -m streamlit run src/dashboard/app.py --server.port 8501
+```
+
+```bash
+python -m pip install -r requirements.txt
+python -m pip install -r requirements-streamlit.txt
+python -m streamlit run src/dashboard/app.py --server.port 8501
+```
+
+Docker run:
+
+```powershell
+docker compose up --build
+```
+
+```bash
+docker compose up --build
+```
+
+URLs:
+- Dashboard: `http://localhost:8501`
+- API: `http://localhost:8000`
+- MLflow: `http://localhost:5000`
+- Prometheus: `http://localhost:9090`
+
+Pages:
+- Overview
+- Live Prediction
+- Batch Prediction
+- MLflow Tracking
+- Model Registry
+- Monitoring & Drift
+- Documentation Evidence
+
+Production-style safeguards:
+- HTTP clients use timeout and structured failures (no user-facing crashes).
+- MLflow access is cached and wrapped with safe unavailable states.
+- Batch validation enforces empty and max-size checks.
+- Monitoring and evidence files render cleanly when files/services are missing.
+
 ## MLflow Dashboard & Visualization Interface
 
 - Dashboard URL: `http://localhost:8000/dashboard` (also `http://localhost:8000/`)
@@ -191,6 +286,9 @@ Crash-proofing highlights:
 
 Internal evidence used to chase **120/120** (course rubric):
 
+- Single-command submission audit (includes docs/repro checks + docs contract tests for components 7/8 readiness):
+  - `python scripts/verify_docs_repro.py`
+
 - [`docs/plan/2026-05-05-complete-project-audit.md`](docs/plan/2026-05-05-complete-project-audit.md) — phased audit + rubric checklist plan
 - [`docs/audits/2026-05-05-project-checklist.md`](docs/audits/2026-05-05-project-checklist.md) — actionable §6 rubric checkboxes + latest command outcomes
 - [`docs/audits/2026-05-05-scorecard.md`](docs/audits/2026-05-05-scorecard.md) — numeric tracking
@@ -214,6 +312,10 @@ Internal evidence used to chase **120/120** (course rubric):
 - Clean-install quickstart verification screenshot target: `docs/screenshots/quickstart_clean_install.png`
 - DVC deterministic repro screenshot target: `docs/screenshots/dvc_repro_deterministic.png`
 - Branch protection screenshot target: `docs/screenshots/branch_protection_main.png`
+
+### Final evidence checklist
+
+- Required grading screenshot names are listed in `docs/screenshots/README.md`.
 
 ---
 
