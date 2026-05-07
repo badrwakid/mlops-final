@@ -43,6 +43,7 @@ def _fake_load_artifacts() -> LoadedModel:
         preprocessor=preprocessor,
         model_name="bike_share_regressor",
         model_version="ci-fixture",
+        load_source="registry_production",
     )
 
 

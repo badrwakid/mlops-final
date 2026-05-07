@@ -14,6 +14,7 @@ from evidently.metric_preset import (
 )
 from evidently.report import Report
 from src.config import load_config
+from src.data.split import inject_drift
 from src.serving.metrics import DRIFT_PSI
 
 from monitoring.drift_logic import drift_alert
@@ -67,6 +68,10 @@ def _feature_weights_from_scores(path: Path) -> dict[str, float]:
     return {k: 0.2 + 0.8 * (v / max_score) for k, v in raw.items()}
 
 
+def _monitoring_mode(generate_synthetic_demo_report: bool) -> str:
+    return "operational_with_demo" if generate_synthetic_demo_report else "operational"
+
+
 def main() -> None:
     cfg = load_config()
     out_dir = Path("monitoring/evidently_reports")
@@ -87,7 +92,7 @@ def main() -> None:
         }
         with open(out_dir / "drift_summary.json", "w", encoding="utf-8") as f:
             json.dump(summary, f, indent=2)
-        log.error("monitoring aborted: missing artifacts: %s", ", ".join(missing))
+        log.warning("monitoring skipped: missing artifacts: %s", ", ".join(missing))
         raise SystemExit(2)
 
     model = joblib.load(cfg.paths.model)
@@ -95,27 +100,51 @@ def main() -> None:
     reference = pd.read_parquet(cfg.paths.reference)
     production = pd.read_parquet(cfg.paths.production)
 
-    # baseline: first half of reference as ref, second half as clean current
+    # Baseline sanity check: compare two disjoint windows sampled from the reference period.
     half = len(reference) // 2
-    production_clean = reference.iloc[half:].copy()
-    ref = reference.iloc[:half].copy()
+    reference_window = reference.iloc[:half].copy()
+    current_clean_window = reference.iloc[half:].copy()
+    current_observed_window = production.copy()
 
     feature_cols = cfg.data.numeric_features + cfg.data.categorical_features
-    ref = _add_predictions(ref, model, preprocessor, feature_cols, cfg.data.target)
-    prod_clean = _add_predictions(production_clean, model, preprocessor, feature_cols, cfg.data.target)
-    prod_drift = _add_predictions(production, model, preprocessor, feature_cols, cfg.data.target)
+    reference_window = _add_predictions(reference_window, model, preprocessor, feature_cols, cfg.data.target)
+    current_clean_window = _add_predictions(
+        current_clean_window, model, preprocessor, feature_cols, cfg.data.target
+    )
+    current_observed_window = _add_predictions(
+        current_observed_window, model, preprocessor, feature_cols, cfg.data.target
+    )
 
     presets = [DataDriftPreset(), DataQualityPreset(), RegressionPreset()]
 
     baseline_report = Report(metrics=presets)
-    baseline_report.run(reference_data=ref, current_data=prod_clean)
+    baseline_report.run(reference_data=reference_window, current_data=current_clean_window)
     baseline_report.save_html(str(out_dir / "baseline.html"))
     log.info("baseline report saved → %s", out_dir / "baseline.html")
 
     drift_report = Report(metrics=presets)
-    drift_report.run(reference_data=ref, current_data=prod_drift)
+    drift_report.run(reference_data=reference_window, current_data=current_observed_window)
     drift_report.save_html(str(out_dir / "drift.html"))
     log.info("drift report saved → %s", out_dir / "drift.html")
+
+    synthetic_demo_report_generated = False
+    if cfg.drift.generate_synthetic_demo_report:
+        demo_observed = inject_drift(
+            production,
+            factor_temp=cfg.drift.perturb_temp_factor,
+            factor_hum=cfg.drift.perturb_hum_factor,
+            std_windspeed=cfg.drift.perturb_windspeed_noise_std,
+            seed=cfg.data.random_state,
+        )
+        demo_observed = _add_predictions(
+            demo_observed, model, preprocessor, feature_cols, cfg.data.target
+        )
+        demo_report = Report(metrics=presets)
+        demo_report.run(reference_data=reference_window, current_data=demo_observed)
+        demo_path = out_dir / cfg.drift.synthetic_demo_report_name
+        demo_report.save_html(str(demo_path))
+        synthetic_demo_report_generated = True
+        log.info("synthetic demo report saved → %s", demo_path)
 
     drift_map = _drift_per_feature_from_report(drift_report)
     exclude = {"yr", "target", "prediction"}
@@ -127,16 +156,22 @@ def main() -> None:
         feature_weights=score_weights,
     )
     input_drift_map = {k: v for k, v in drift_map.items() if k not in exclude}
+    unweighted_input_share = (
+        sum(1 for v in input_drift_map.values() if v) / len(input_drift_map) if input_drift_map else 0.0
+    )
     for feature, is_drifted in input_drift_map.items():
         DRIFT_PSI.labels(feature=feature).set(1.0 if is_drifted else 0.0)
     summary = {
+        "monitoring_mode": _monitoring_mode(cfg.drift.generate_synthetic_demo_report),
+        "synthetic_demo_report_generated": synthetic_demo_report_generated,
+        "synthetic_demo_report_name": cfg.drift.synthetic_demo_report_name,
         "alert": result.alert,
+        # Backward-compatible key used by existing docs/dashboards.
         "drift_share": result.drift_share,
-        "drift_share_inputs_only": (
-            (sum(1 for v in input_drift_map.values() if v) / len(input_drift_map))
-            if input_drift_map
-            else 0.0
-        ),
+        "drift_share_weighted_inputs": result.drift_share,
+        # Backward-compatible key used by existing docs/dashboards.
+        "drift_share_inputs_only": unweighted_input_share,
+        "drift_share_inputs_only_unweighted": unweighted_input_share,
         "drifted_features": result.drifted_features,
         "excluded_from_share": sorted(exclude),
         "threshold": cfg.drift.drift_threshold_share,
@@ -145,6 +180,7 @@ def main() -> None:
             "Trigger retraining when input drift_share exceeds threshold in 2 consecutive windows; "
             "investigate feature pipelines immediately."
         ),
+        "policy_note": "Consecutive-window enforcement requires external run history/state.",
     }
     with open(out_dir / "drift_summary.json", "w", encoding="utf-8") as f:
         json.dump(summary, f, indent=2)

@@ -31,6 +31,7 @@ from src.serving.metrics import (
     FEATURE_HR,
     FEATURE_TEMP,
     INFERENCE_COUNT,
+    MODEL_REGISTRY_SATISFIED,
     MODEL_VERSION,
     PREDICTION_CONFIDENCE,
     PREDICTION_LATENCY,
@@ -54,6 +55,28 @@ DRIFT_EXPERIMENT_NAME = "bike_sharing_drift"
 DASHBOARD_URL = "/dashboard"
 MAX_BATCH_SIZE = 100
 RECENT_HISTORY_LIMIT = 20
+# Reject JSON bodies larger than this (batch abuse / accidental huge uploads).
+MAX_REQUEST_BODY_BYTES = int(os.environ.get("MAX_REQUEST_BODY_BYTES", str(256 * 1024)))
+
+# Model resolution paths (see LoadedModel.load_source, /api/model-info, Prometheus bike_model_registry_load_satisfied).
+LOAD_SOURCE_REGISTRY = "registry_production"
+LOAD_SOURCE_LOCAL_FALLBACK = "local_pickle_fallback"
+LOAD_SOURCE_LOCAL_ONLY_ENV = "local_only_env"
+
+_REMEDIATION_REGISTRY_FAILURE = (
+    "Mount the same MLflow artifact volume on api and mlflow (docker-compose mlflow-data); "
+    "seed Production with: MLFLOW_TRACKING_URI=http://127.0.0.1:5001 PYTHONPATH=. "
+    "python scripts/seed_mlflow_production.py — or train/register against this tracking URI."
+)
+
+
+def _mlflow_public_ui_url() -> str:
+    """Browser-facing MLflow UI URL (may differ from MLFLOW_TRACKING_URI in Docker)."""
+    return os.environ.get("MLFLOW_PUBLIC_UI_URL", "http://localhost:5000").rstrip("/")
+
+
+def _env_truthy(name: str) -> bool:
+    return os.environ.get(name, "").strip().lower() in ("1", "true", "yes", "on")
 
 
 def _default_stats() -> dict[str, float | int | None]:
@@ -65,12 +88,22 @@ def _default_stats() -> dict[str, float | int | None]:
     }
 
 
+@dataclass(frozen=True)
+class ModelLoadMeta:
+    load_source: str
+    fallback_reason: str | None = None
+    remediation: str | None = None
+
+
 @dataclass
 class LoadedModel:
     model: Any
     preprocessor: Any
     model_name: str
     model_version: str
+    load_source: str = LOAD_SOURCE_REGISTRY
+    fallback_reason: str | None = None
+    remediation: str | None = None
 
 
 def _resolve_tracking_uri(cfg: Config) -> str:
@@ -81,27 +114,99 @@ def _feature_columns(cfg: Config) -> list[str]:
     return cfg.data.numeric_features + cfg.data.categorical_features
 
 
-def _load_model(cfg: Config) -> tuple[Any, str]:
-    model_name = cfg.mlflow.registered_model_name
-    model_uri = f"models:/{model_name}/Production"
-    mlflow.set_tracking_uri(_resolve_tracking_uri(cfg))
+def _strict_production_mode() -> bool:
+    """Hard production: MLflow Production registry only (no pickle fallback) and fatal startup on load failure."""
+    return _env_truthy("PRODUCTION_STRICT") or _env_truthy("REQUIRE_REGISTRY_MODEL")
+
+
+def _production_display_version(cfg: Config, registered_name: str) -> str:
     try:
-        return mlflow.sklearn.load_model(model_uri), "Production"
-    except MlflowException as exc:
-        log.warning("MLflow registry load failed; falling back to local pickle: %s", exc)
-        return joblib.load(cfg.paths.model), "local"
+        client = MlflowClient(_resolve_tracking_uri(cfg))
+        versions = client.get_latest_versions(registered_name, stages=["Production"])
+        if versions:
+            return f"Production:v{versions[0].version}"
+    except Exception:
+        log.debug("could not read Production version label from registry", exc_info=True)
+    return "Production"
+
+
+def _load_model(cfg: Config) -> tuple[Any, str, ModelLoadMeta]:
+    registered_name = cfg.mlflow.registered_model_name
+    model_uri = f"models:/{registered_name}/Production"
+    mlflow.set_tracking_uri(_resolve_tracking_uri(cfg))
+
+    if _env_truthy("SERVE_USE_LOCAL_MODEL_ONLY") and _strict_production_mode():
+        raise RuntimeError(
+            "SERVE_USE_LOCAL_MODEL_ONLY is incompatible with PRODUCTION_STRICT / REQUIRE_REGISTRY_MODEL"
+        )
+
+    if _env_truthy("SERVE_USE_LOCAL_MODEL_ONLY"):
+        log.warning(
+            "SERVE_USE_LOCAL_MODEL_ONLY: serving from local pickle only (%s), not MLflow Production",
+            cfg.paths.model,
+        )
+        model = joblib.load(cfg.paths.model)
+        return (
+            model,
+            "local",
+            ModelLoadMeta(
+                load_source=LOAD_SOURCE_LOCAL_ONLY_ENV,
+                fallback_reason="SERVE_USE_LOCAL_MODEL_ONLY=1",
+                remediation="Unset SERVE_USE_LOCAL_MODEL_ONLY for registry-backed production serving.",
+            ),
+        )
+
+    try:
+        model = mlflow.sklearn.load_model(model_uri)
+        ver_label = _production_display_version(cfg, registered_name)
+        log.info("Inference model loaded from MLflow registry %s (%s)", model_uri, ver_label)
+        return (
+            model,
+            ver_label,
+            ModelLoadMeta(load_source=LOAD_SOURCE_REGISTRY),
+        )
+    except (MlflowException, OSError) as exc:
+        detail = f"{type(exc).__name__}: {exc}"
+        if _strict_production_mode():
+            log.error("Strict production: MLflow Production registry load failed: %s", detail)
+            raise RuntimeError(
+                f"Production registry model required but could not be loaded: {detail}"
+            ) from exc
+        log.warning(
+            "Inference model falling back to local pickle (%s). Cause: %s. %s",
+            cfg.paths.model,
+            detail,
+            _REMEDIATION_REGISTRY_FAILURE,
+        )
+        model = joblib.load(cfg.paths.model)
+        return (
+            model,
+            "local",
+            ModelLoadMeta(
+                load_source=LOAD_SOURCE_LOCAL_FALLBACK,
+                fallback_reason=detail,
+                remediation=_REMEDIATION_REGISTRY_FAILURE,
+            ),
+        )
 
 
 def load_artifacts() -> LoadedModel:
     cfg = load_config()
-    model, model_version = _load_model(cfg)
+    model, model_version, meta = _load_model(cfg)
     preprocessor = joblib.load(cfg.paths.preprocessor)
     return LoadedModel(
         model=model,
         preprocessor=preprocessor,
         model_name=cfg.mlflow.registered_model_name,
         model_version=model_version,
+        load_source=meta.load_source,
+        fallback_reason=meta.fallback_reason,
+        remediation=meta.remediation,
     )
+
+
+def _inference_from_registry(loaded: LoadedModel) -> bool:
+    return loaded.load_source == LOAD_SOURCE_REGISTRY
 
 
 def _to_dataframe(records: list[BikeRecord]) -> pd.DataFrame:
@@ -255,7 +360,7 @@ def _evidence_items() -> list[dict[str, Any]]:
         ("Drift Summary", ROOT_DIR / "monitoring" / "evidently_reports" / "drift_summary.json", "/monitoring/evidently_reports/drift_summary.json"),
     ]
     external = [
-        ("MLflow", "http://localhost:5000"),
+        ("MLflow", _mlflow_public_ui_url()),
         ("Prometheus", "http://localhost:9090"),
         ("Metrics", "/metrics"),
     ]
@@ -301,7 +406,7 @@ def _mlflow_status_payload() -> dict[str, Any]:
         return {
             "available": True,
             "tracking_uri": tracking_uri,
-            "ui_url": "http://localhost:5000",
+            "ui_url": _mlflow_public_ui_url(),
             "experiment_name": cfg.mlflow.experiment_name,
             "experiment_id": exp.experiment_id if exp else None,
             "registered_model_name": cfg.mlflow.registered_model_name,
@@ -324,6 +429,7 @@ def _dashboard_html() -> str:
   <link rel="stylesheet" href="/static/dashboard.css" />
 </head>
 <body>
+  <noscript><p>This dashboard needs JavaScript to predict.</p></noscript>
   <main class="container">
     <header class="header-strip">
       <div class="title-wrap">
@@ -478,7 +584,7 @@ table{width:100%;border-collapse:collapse;margin-top:10px}th,td{text-align:left;
 
 
 def _dashboard_js() -> str:
-    return """
+    raw = """
 (()=>{
 const TEMP_MIN_C=-8,TEMP_MAX_C=39,ATEMP_MIN_C=-16,ATEMP_MAX_C=50,WIND_MAX_KMH=67;
 const fmtInt=(n)=>Math.round(Number(n||0)).toLocaleString(),fmtPct=(x)=>`${Math.round((Number(x)||0)*100)}%`,fmtMs=(n)=>`${Math.round(Number(n||0))} ms`,fmtConf=(x)=>x>=0.8?'High':x>=0.6?'Medium':'Low';
@@ -492,7 +598,7 @@ function toPayload(){const season=Number(byId("season").value),mnth=Number(byId(
 function drawSpark(target,vals){if(!vals.length){target.innerHTML="";return}const w=580,h=40,p=3,mn=Math.min(...vals),mx=Math.max(...vals),sx=(i)=>p+(i/Math.max(vals.length-1,1))*(w-p*2),sy=(v)=>h-p-((v-mn)/Math.max(mx-mn,1))* (h-p*2),d=vals.map((v,i)=>`${i?"L":"M"} ${sx(i)} ${sy(v)}`).join(" "),lx=sx(vals.length-1),ly=sy(vals[vals.length-1]);target.innerHTML=`<svg viewBox="0 0 ${w} ${h}" width="100%" height="40"><path d="${d}" fill="none" stroke="var(--accent)" stroke-width="1.5"/><circle cx="${lx}" cy="${ly}" r="2.5" fill="var(--accent)"/></svg>`}
 function drawLineChart(target,points,currentX){const width=600,height=240,pad={l:48,r:14,t:16,b:28},innerW=width-pad.l-pad.r,innerH=height-pad.t-pad.b;if(!points.length){target.innerHTML="";return}const maxY=Math.max(100,Math.ceil(Math.max(...points.map(p=>p.prediction))/100)*100),mid=maxY/2,sx=(x)=>pad.l+(x/24)*innerW,sy=(y)=>pad.t+innerH-(y/maxY)*innerH,line=points.map((p,i)=>`${i===0?"M":"L"} ${sx(p.hour)} ${sy(p.prediction)}`).join(" "),now=points.find(p=>p.hour===currentX)||points[0];target.innerHTML=`<svg viewBox="0 0 ${width} ${height}" width="100%" height="250"><line x1="${pad.l}" y1="${sy(mid)}" x2="${width-pad.r}" y2="${sy(mid)}" stroke="var(--border)" stroke-dasharray="3 3" stroke-width="0.5"/><line x1="${pad.l}" y1="${pad.t}" x2="${pad.l}" y2="${height-pad.b}" stroke="var(--border)" stroke-width="0.5"/><line x1="${pad.l}" y1="${height-pad.b}" x2="${width-pad.r}" y2="${height-pad.b}" stroke="var(--border)" stroke-width="0.5"/><text x="${pad.l-8}" y="${height-pad.b+3}" fill="var(--text-3)" font-size="9" text-anchor="end">0</text><text x="${pad.l-8}" y="${sy(mid)+3}" fill="var(--text-3)" font-size="9" text-anchor="end">${fmtInt(mid)}</text><text x="${pad.l-8}" y="${pad.t+3}" fill="var(--text-3)" font-size="9" text-anchor="end">${fmtInt(maxY)}</text>${[0,6,12,18,24].map(h=>`<text x="${sx(h)}" y="${height-10}" fill="var(--text-3)" font-size="9" text-anchor="middle">${h}h</text>`).join("")}<path d="${line}" fill="none" stroke="var(--accent)" stroke-width="1.5"/><circle cx="${sx(now.hour)}" cy="${sy(now.prediction)}" r="3" fill="var(--accent)"/><text x="${sx(now.hour)+7}" y="${sy(now.prediction)-4}" fill="var(--text)" font-size="9">${fmtInt(now.prediction)} now</text></svg>`}
 function drawBarChart(target,items){const width=600,height=240,pad={l:48,r:14,t:16,b:28},innerW=width-pad.l-pad.r,innerH=height-pad.t-pad.b;if(!items.length){target.innerHTML="";return}const maxY=Math.max(100,Math.ceil(Math.max(...items.map(p=>p.value))/100)*100),mid=maxY/2,count=items.length,drawLineOnly=count>20,slim=count>8,gap=drawLineOnly?8:(slim?6:20),bw=drawLineOnly?2:(slim?12:40),full=(bw*count)+(gap*(count-1)),offset=Math.max(0,(innerW-full)/2),sy=(y)=>pad.t+innerH-(y/maxY)*innerH;let bars="";if(drawLineOnly){const pts=items.map((it,i)=>`${pad.l+offset+i*(bw+gap)+bw/2},${sy(it.value)}`).join(" ");bars=`<polyline fill="none" stroke="var(--accent)" stroke-width="1.5" points="${pts}"/>`}else{bars=items.map((it,i)=>{const x=pad.l+offset+i*(bw+gap),y=sy(it.value),h=height-pad.b-y,op=it.active?0.95:0.55,label=slim?"":`<text x="${x+bw/2}" y="${y-4}" fill="var(--text)" font-size="9" text-anchor="middle">${fmtInt(it.value)}</text>`;return `<rect x="${x}" y="${y}" width="${bw}" height="${h}" fill="var(--accent)" opacity="${op}"/>${label}`}).join("")}const labels=items.map((it,i)=>{const x=pad.l+offset+i*(bw+gap)+bw/2;return `<text x="${x}" y="${height-10}" fill="var(--text-3)" font-size="9" text-anchor="middle">${it.label}</text>`}).join("");target.innerHTML=`<svg viewBox="0 0 ${width} ${height}" width="100%" height="250"><line x1="${pad.l}" y1="${sy(mid)}" x2="${width-pad.r}" y2="${sy(mid)}" stroke="var(--border)" stroke-dasharray="3 3" stroke-width="0.5"/><line x1="${pad.l}" y1="${pad.t}" x2="${pad.l}" y2="${height-pad.b}" stroke="var(--border)" stroke-width="0.5"/><line x1="${pad.l}" y1="${height-pad.b}" x2="${width-pad.r}" y2="${height-pad.b}" stroke="var(--border)" stroke-width="0.5"/><text x="${pad.l-8}" y="${height-pad.b+3}" fill="var(--text-3)" font-size="9" text-anchor="end">0</text><text x="${pad.l-8}" y="${sy(mid)+3}" fill="var(--text-3)" font-size="9" text-anchor="end">${fmtInt(mid)}</text><text x="${pad.l-8}" y="${pad.t+3}" fill="var(--text-3)" font-size="9" text-anchor="end">${fmtInt(maxY)}</text>${bars}${labels}</svg>`}
-function renderStatus(summary){const healthOk=summary.health&&summary.health.status==="ok",modelReady=summary.ready&&summary.ready.available,ml=summary.mlflow||{},row=[{ok:healthOk,label:`API ${healthOk?"online":"offline"}`},{ok:modelReady,label:`Model ${modelReady?"ready":"not ready"}`},{ok:!!ml.available,label:`MLflow ${ml.available?"connected":"unavailable"}`},{warn:true,label:`Registry ${ml.registered_model_available?"available":"missing"}`}];byId("statusRow").innerHTML=row.map(r=>`<span class="status-item"><span class="dot" style="background:${r.warn?"var(--warn)":(r.ok?"var(--ok)":"var(--bad)")}"></span>${r.label}</span>`).join("");byId("subTitle").textContent="MLOps serving · v1 · local"}
+function renderStatus(summary){const healthOk=summary.health&&summary.health.status==="ok",modelReady=summary.ready&&summary.ready.available,ml=summary.mlflow||{},mlm=summary.model_load||{},pathOk=mlm.registry_satisfied!==false,row=[{ok:healthOk,label:`API ${healthOk?"online":"offline"}`},{ok:modelReady,label:`Model ${modelReady?"ready":"not ready"}`},{ok:!!ml.available,label:`MLflow ${ml.available?"connected":"unavailable"}`},{warn:true,label:`Registry ${ml.registered_model_available?"available":"missing"}`},{ok:pathOk,warn:!pathOk,label:`Inference ${pathOk?"· MLflow Production":"· fallback (see /api/model-info)"}`}];byId("statusRow").innerHTML=row.map(r=>`<span class="status-item"><span class="dot" style="background:${r.warn?"var(--warn)":(r.ok?"var(--ok)":"var(--bad)")}"></span>${r.label}</span>`).join("");byId("subTitle").textContent="MLOps serving · v1 · local"}
 function renderKPIs(summary,recent){const run=summary.runtime||{},latest=run.latest_prediction==null?"—":fmtInt(run.latest_prediction),conf=Number(run.latest_confidence||0),avg=run.avg_latency_ms==null?"—":fmtMs(run.avg_latency_ms),p95=recent.length?fmtMs([...recent.map(r=>Number(r.latency_ms||0))].sort((a,b)=>a-b)[Math.floor(0.95*(recent.length-1))]):"—",total=fmtInt(run.total_predictions||0),subCount=`${fmtInt(state.batchCount)} batch · ${fmtInt(state.singleCount)} single`;byId("kpiGrid").innerHTML=`<div class="kpi"><div class="label">Latest prediction</div><div class="value big">${latest} <span class="sub">rentals/hr</span></div><div id="kpiSpark" class="spark-inline"></div></div><div class="kpi"><div class="label">Confidence</div><div class="value">${fmtPct(conf)}</div><div class="sub">${fmtConf(conf)}</div></div><div class="kpi"><div class="label">Avg latency</div><div class="value">${avg}</div><div class="sub">p95 · ${p95}</div></div><div class="kpi"><div class="label">Predictions today</div><div class="value">${total}</div><div class="sub">${subCount}</div></div>`;drawSpark(byId("kpiSpark"),recent.map(r=>Number(r.prediction||0)).slice(-20))}
 function renderServices(summary){const ml=summary.mlflow||{},rows=[{name:"Health",ok:summary.health&&summary.health.status==="ok",endpoint:"/health"},{name:"Readiness",ok:summary.ready&&summary.ready.available,endpoint:"/ready"},{name:"MLflow",ok:!!ml.available,endpoint:"http://localhost:5000"}],up=rows.filter(r=>r.ok).length;byId("serviceCount").textContent=`${up} / ${rows.length} up`;byId("serviceRows").innerHTML=rows.map(r=>`<div class="service-row"><span class="service-name"><span class="dot" style="background:${r.ok?"var(--ok)":"var(--bad)"}"></span>${r.name}</span><span class="endpoint">${r.endpoint}</span></div>`).join("")}
 function renderEvidence(items){const available=items.filter(i=>i.exists),pending=items.filter(i=>!i.exists);byId("evidenceCount").textContent=`${available.length} of ${items.length} available`;byId("evidenceAvailable").innerHTML=available.map(i=>`<div class="ev-row"><span class="check">✓</span>${i.url?`<a href="${i.url}" target="_blank">${i.name}</a>`:i.name}</div>`).join("")||'<div class="subtle">No evidence available.</div>';byId("evidencePending").textContent=pending.length?pending.map(i=>i.name).join(" · "):"None"}
@@ -509,6 +615,7 @@ function loadSampleBatch(){const toNorm=(h)=>({season:h.season,mnth:h.mnth,hr:h.
 renderForm();loadSample();loadSampleBatch();byId("predictBtn").addEventListener("click",runPredict);byId("demoBtn").addEventListener("click",loadSample);byId("batchBtn").addEventListener("click",runBatch);byId("sampleBatchBtn").addEventListener("click",loadSampleBatch);byId("runDriftBtn").addEventListener("click",runDrift);byId("batchInput").addEventListener("input",()=>{const n=byId("batchInput").value.split("\\n").map(s=>s.trim()).filter(Boolean).length;byId("batchCounter").textContent=`${n} / 100 lines`});refresh();
 })();
 """
+    return raw.replace("http://localhost:5000", _mlflow_public_ui_url())
 
 
 def _safe_file_response(relative_path: str) -> FileResponse:
@@ -530,14 +637,60 @@ async def lifespan(app: FastAPI):
         loaded = load_artifacts()
         app.state.loaded_model = loaded
         MODEL_VERSION.labels(version=loaded.model_version).set(1)
-        log.info("model loaded name=%s version=%s", loaded.model_name, loaded.model_version)
+        MODEL_REGISTRY_SATISFIED.set(1.0 if loaded.load_source == LOAD_SOURCE_REGISTRY else 0.0)
+        log.info(
+            "model ready name=%s version=%s load_source=%s",
+            loaded.model_name,
+            loaded.model_version,
+            loaded.load_source,
+        )
     except Exception as exc:
         app.state.load_error = str(exc)
         log.exception("startup model load failed")
+        if _strict_production_mode():
+            raise
     yield
 
 
 app = FastAPI(title="Bike Sharing Predictor", lifespan=lifespan)
+
+
+@app.middleware("http")
+async def _production_security_headers(request: Request, call_next):
+    response = await call_next(request)
+    if request.url.path in ("/", DASHBOARD_URL):
+        response.headers.setdefault(
+            "Content-Security-Policy",
+            (
+                "default-src 'self'; "
+                "script-src 'self'; "
+                "style-src 'self' 'unsafe-inline'; "
+                "img-src 'data:'; "
+                "connect-src 'self'; "
+                "frame-ancestors 'none'; "
+                "base-uri 'self'"
+            ),
+        )
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    return response
+
+
+@app.middleware("http")
+async def _production_payload_limit(request: Request, call_next):
+    # Registered after security so this runs first on the request (reject oversized bodies early).
+    if request.method in ("POST", "PUT", "PATCH"):
+        cl = request.headers.get("content-length")
+        if cl is not None:
+            try:
+                if int(cl) > MAX_REQUEST_BODY_BYTES:
+                    return JSONResponse(
+                        status_code=413,
+                        content={"detail": "Payload too large"},
+                    )
+            except ValueError:
+                pass
+    return await call_next(request)
 
 
 @app.get("/health", response_model=HealthResponse)
@@ -617,6 +770,10 @@ def model_info() -> dict[str, Any]:
         "available": True,
         "model_name": loaded.model_name,
         "model_version": loaded.model_version,
+        "load_source": loaded.load_source,
+        "registry_production_satisfied": loaded.load_source == LOAD_SOURCE_REGISTRY,
+        "fallback_reason": loaded.fallback_reason,
+        "remediation": loaded.remediation,
     }
 
 
@@ -625,17 +782,32 @@ def drift_summary() -> dict[str, Any]:
     return _drift_summary()
 
 
+def _model_load_summary() -> dict[str, Any]:
+    loaded = getattr(app.state, "loaded_model", None)
+    if loaded is None:
+        return {"available": False, "registry_satisfied": False}
+    return {
+        "available": True,
+        "source": loaded.load_source,
+        "registry_satisfied": loaded.load_source == LOAD_SOURCE_REGISTRY,
+        "version_label": loaded.model_version,
+        "fallback_reason": loaded.fallback_reason,
+        "remediation": loaded.remediation,
+    }
+
+
 @app.get("/api/dashboard-summary")
 def dashboard_summary() -> dict[str, Any]:
     return {
         "health": health().model_dump(),
         "ready": ready(),
         "model": model_info(),
+        "model_load": _model_load_summary(),
         "mlflow": _mlflow_status_payload(),
         "runtime": getattr(app.state, "stats", _default_stats()),
         "drift": _drift_summary(),
         "links": {
-            "mlflow": "http://localhost:5000",
+            "mlflow": _mlflow_public_ui_url(),
             "prometheus": "http://localhost:9090",
             "dashboard": DASHBOARD_URL,
         },
@@ -825,7 +997,7 @@ def scenario_hourly(record: BikeRecord) -> dict[str, Any]:
         return {
             "available": True,
             "scenario": "hourly",
-            "model_source": "mlflow" if loaded and loaded.model_version != "local" else "local",
+            "model_source": "mlflow" if loaded and _inference_from_registry(loaded) else "local",
             "model_name": loaded.model_name if loaded else "unavailable",
             "model_version": loaded.model_version if loaded else "unavailable",
             "points": normalized_points,
@@ -843,7 +1015,7 @@ def scenario_weather(record: BikeRecord) -> dict[str, Any]:
         return {
             "available": True,
             "scenario": "weather",
-            "model_source": "mlflow" if loaded and loaded.model_version != "local" else "local",
+            "model_source": "mlflow" if loaded and _inference_from_registry(loaded) else "local",
             "model_name": loaded.model_name if loaded else "unavailable",
             "model_version": loaded.model_version if loaded else "unavailable",
             "points": points,

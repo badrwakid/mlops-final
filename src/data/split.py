@@ -39,7 +39,7 @@ def build_splits(
         df = drop_configured_columns(df, drop_columns)
     year0 = df[df[split_col] == 0].copy()
     year1 = df[df[split_col] == 1].copy()
-    # Temporal split: train/test/reference are year 0 only; production is year 1 (with drift).
+    # Temporal split: train/test/reference are year 0 only; production is raw year 1.
     # Random splits below are within year 0 — not stratified on cnt (regression); stratify=
     # is undefined for continuous targets without binning; quantile stratification is optional.
     year0_main, reference = train_test_split(
@@ -62,13 +62,7 @@ def main() -> None:
         random_state=cfg.data.random_state,
         drop_columns=cfg.data.drop_columns,
     )
-    production = inject_drift(
-        year1,
-        factor_temp=cfg.drift.perturb_temp_factor,
-        factor_hum=cfg.drift.perturb_hum_factor,
-        std_windspeed=cfg.drift.perturb_windspeed_noise_std,
-        seed=cfg.data.random_state,
-    )
+    production = year1.copy()
     Path(cfg.paths.train).parent.mkdir(parents=True, exist_ok=True)
     train.to_parquet(cfg.paths.train, index=False)
     test.to_parquet(cfg.paths.test, index=False)

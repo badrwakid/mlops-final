@@ -1,20 +1,18 @@
 {
-  "best_cv_rmse": 63.06000814694751,
+  "best_cv_rmse": 64.45705857880137,
   "best_params": {
-    "l2_regularization": 1.0,
-    "learning_rate": 0.03,
-    "max_depth": 8,
-    "max_iter": 200,
-    "max_leaf_nodes": 63,
-    "min_samples_leaf": 10
+    "max_depth": null,
+    "max_features": 1.0,
+    "min_samples_leaf": 2,
+    "n_estimators": 200
   },
   "gate": {
     "min_test_r2": 0.7,
     "passed": true
   },
   "test": {
-    "mae": 44.24444525255685,
-    "r2": 0.773524091749787,
-    "rmse": 64.41292929680615
+    "mae": 44.97053333866219,
+    "r2": 0.7627293762984981,
+    "rmse": 65.93014499849441
   }
 }

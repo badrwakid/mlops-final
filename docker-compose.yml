@@ -5,8 +5,10 @@ services:
       dockerfile: docker/mlflow.Dockerfile
     image: bike-mlflow:latest
     container_name: mlflow
+    restart: unless-stopped
     ports:
-      - "5000:5000"
+      # Host :5000 is often taken (local MLflow); map UI to :5001 on localhost.
+      - "127.0.0.1:5001:5000"
     volumes:
       - mlflow-data:/mlflow
     healthcheck:
@@ -21,13 +23,20 @@ services:
       dockerfile: docker/api.Dockerfile
     image: bike-api:latest
     container_name: api
+    restart: unless-stopped
     depends_on:
       mlflow:
         condition: service_healthy
     environment:
       MLFLOW_TRACKING_URI: http://mlflow:5000
+      MLFLOW_PUBLIC_UI_URL: http://localhost:5001
+      # Hard production: MLflow Production only (no pickle fallback); process exits if model/preprocessor load fails.
+      PRODUCTION_STRICT: "true"
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
+    # Share artifact store with mlflow so registry URIs under /mlflow/mlruns resolve inside the API container.
+    volumes:
+      - mlflow-data:/mlflow
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
       interval: 10s
@@ -37,13 +46,15 @@ services:
   prometheus:
     image: prom/prometheus:v2.53.0
     container_name: prometheus
+    restart: unless-stopped
     depends_on:
       api:
         condition: service_healthy
     ports:
-      - "9090:9090"
+      - "127.0.0.1:9090:9090"
     volumes:
       - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
 
   dashboard:
     build:
@@ -75,3 +86,4 @@ services:
 
 volumes:
   mlflow-data:
+  prometheus-data:

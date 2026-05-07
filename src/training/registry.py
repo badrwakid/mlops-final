@@ -495,7 +495,15 @@ def promote_version_to_production(
     approved: bool = True,
 ) -> str:
     if not decision.should_promote:
-        raise ValueError(f"Promotion rejected: {decision.compare_status}")
+        raise ValueError(
+            "Promotion rejected by policy decision: "
+            f"compare_status={decision.compare_status} should_promote={decision.should_promote}"
+        )
+    if not approved:
+        raise ValueError(
+            "Promotion blocked: explicit approval is required "
+            f"(approval_mode={approval_mode}, compare_status={decision.compare_status})."
+        )
     version_str = _version_str(version)
     _set_promotion_audit_tags(
         client,

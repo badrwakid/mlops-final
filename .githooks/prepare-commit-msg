@@ -1,0 +1,13 @@
+#!/bin/sh
+# Remove Cursor IDE-injected Co-authored-by trailer so commits stay authored only as git user.* .
+# Also disable in Cursor: Settings -> search "Git: Enable Auto Commit Signing" / co-author features if present.
+MSG_FILE="$1"
+if [ -z "$MSG_FILE" ] || [ ! -f "$MSG_FILE" ]; then
+  exit 0
+fi
+tmp="${MSG_FILE}.strip.$$"
+if grep -v '^Co-authored-by: Cursor' "$MSG_FILE" > "$tmp" 2>/dev/null; then
+  mv "$tmp" "$MSG_FILE"
+else
+  rm -f "$tmp"
+fi

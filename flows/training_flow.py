@@ -12,7 +12,7 @@ from mlflow.tracking import MlflowClient
 from prefect import flow, get_run_logger, task
 from src.config import load_config
 from src.data.load import load_raw
-from src.data.split import build_splits, inject_drift
+from src.data.split import build_splits
 from src.features.preprocessor import fit_preprocessor
 from src.training.registry import evaluate_candidate_promotion, promote_version_to_production
 from src.training.train import main as train_main
@@ -39,13 +39,7 @@ def preprocess(validated_path: str) -> str:
         ref_holdout=cfg.data.reference_holdout,
         random_state=cfg.data.random_state,
     )
-    production = inject_drift(
-        year1,
-        factor_temp=cfg.drift.perturb_temp_factor,
-        factor_hum=cfg.drift.perturb_hum_factor,
-        std_windspeed=cfg.drift.perturb_windspeed_noise_std,
-        seed=cfg.data.random_state,
-    )
+    production = year1.copy()
     train.to_parquet(cfg.paths.train, index=False)
     test.to_parquet(cfg.paths.test, index=False)
     reference.to_parquet(cfg.paths.reference, index=False)
@@ -92,9 +86,27 @@ def evaluate(model_path: str) -> dict:
 @task
 def register_model(_metrics: dict) -> int:
     cfg = load_config()
+    log = get_run_logger()
     decision = evaluate_candidate_promotion()
     if not decision.should_promote:
+        log.warning(
+            "register_model: promotion blocked by decision compare_status=%s",
+            decision.compare_status,
+        )
         raise RuntimeError(f"registry promotion rejected: {decision.compare_status}")
+
+    approved = os.environ.get("PREFECT_ALLOW_PRODUCTION_PROMOTION", "").lower() in {"1", "true", "yes"}
+    if not approved:
+        log.warning(
+            "register_model: promotion requires explicit approval via "
+            "PREFECT_ALLOW_PRODUCTION_PROMOTION=1 (candidate_version=%s, compare_status=%s)",
+            decision.candidate.version,
+            decision.compare_status,
+        )
+        raise RuntimeError(
+            "registry promotion blocked: explicit approval missing "
+            "(set PREFECT_ALLOW_PRODUCTION_PROMOTION=1)."
+        )
 
     tracking_uri = os.environ.get("MLFLOW_TRACKING_URI") or cfg.mlflow.tracking_uri
     mlflow.set_tracking_uri(tracking_uri)
@@ -105,9 +117,8 @@ def register_model(_metrics: dict) -> int:
         decision.candidate.version,
         decision=decision,
         approval_mode="prefect_flow",
-        approved=True,
+        approved=approved,
     )
-    log = get_run_logger()
     log.info("register_model: promoted version %s to Production", version_str)
     return int(version_str)
 

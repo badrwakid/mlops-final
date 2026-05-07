@@ -50,3 +50,6 @@
       - configs/params.yaml
     outs:
       - data/splits/model.pkl
+    metrics:
+      - data/splits/metrics.json:
+          cache: false
