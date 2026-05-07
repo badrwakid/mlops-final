@@ -7,6 +7,18 @@ Team workflow for this repo: **branch → run `scripts/run_full_ci_local.ps1` lo
 Public repo: **https://github.com/badrwakid/mlops-final**  
 Default branch: **`main`**.
 
+### Commit authorship (no Cursor co-author lines)
+
+Commits should reflect **only** your Git **`user.name`** / **`user.email`** (e.g. **badrwakid**). The tracked hook **`.githooks/prepare-commit-msg`** removes **`Co-authored-by: Cursor`** if an editor injects it.
+
+After cloning, enable hooks once from the repo root:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+In Cursor, disable any option that **auto-adds co-authors** to commits if that line still appears.
+
 ## GitHub Actions
 
 For public repositories, Actions are typically **enabled by default**. To confirm:
