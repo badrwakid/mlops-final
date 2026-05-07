@@ -7,7 +7,7 @@ from typing import Any
 import mlflow
 import numpy as np
 import optuna
-from sklearn.ensemble import RandomForestRegressor
+from sklearn.ensemble import HistGradientBoostingRegressor, RandomForestRegressor
 from sklearn.model_selection import cross_val_score
 from sklearn.pipeline import Pipeline
 
@@ -25,22 +25,33 @@ def run_hpo(
     search_space: dict[str, list[Any]],
     n_trials: int,
     cv_folds: int,
+    model_type: str = "random_forest",
     random_state: int = 42,
     preprocessor_factory: Callable[[], Any] | None = None,
 ) -> HPOResult:
     sampler = optuna.samplers.TPESampler(seed=random_state)
     study = optuna.create_study(direction="minimize", sampler=sampler)
 
+    def build_model(params: dict[str, Any]):
+        if model_type == "random_forest":
+            return RandomForestRegressor(
+                **params,
+                n_jobs=-1,
+                random_state=random_state,
+            )
+        if model_type == "hist_gradient_boosting":
+            return HistGradientBoostingRegressor(
+                **params,
+                random_state=random_state,
+            )
+        raise ValueError(f"Unsupported model_type: {model_type}")
+
     def objective(trial: optuna.Trial) -> float:
         trial_params = {
             name: trial.suggest_categorical(name, choices)
             for name, choices in search_space.items()
         }
-        model = RandomForestRegressor(
-            **trial_params,
-            n_jobs=-1,
-            random_state=random_state,
-        )
+        model = build_model(trial_params)
         estimator = model
         if preprocessor_factory is not None:
             estimator = Pipeline([
@@ -59,9 +70,11 @@ def run_hpo(
 
         logged_params = {
             **trial_params,
-            "n_jobs": -1,
             "random_state": random_state,
+            "model_type": model_type,
         }
+        if model_type == "random_forest":
+            logged_params["n_jobs"] = -1
         with mlflow.start_run(run_name=f"hpo_trial_{trial.number}", nested=True):
             mlflow.log_params(logged_params)
             mlflow.log_metrics({"cv_rmse": cv_rmse})

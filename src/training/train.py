@@ -8,7 +8,7 @@ from pathlib import Path
 
 import joblib
 import pandas as pd
-from sklearn.ensemble import RandomForestRegressor
+from sklearn.ensemble import HistGradientBoostingRegressor, RandomForestRegressor
 
 from src.config import Config, load_config
 from src.evaluation.metrics import compute_metrics
@@ -32,12 +32,19 @@ def _feature_columns(cfg: Config) -> list[str]:
     return cfg.data.numeric_features + cfg.data.categorical_features
 
 
-def _build_model(params: dict, random_state: int) -> RandomForestRegressor:
-    return RandomForestRegressor(
-        **params,
-        n_jobs=-1,
-        random_state=random_state,
-    )
+def _build_model(model_type: str, params: dict, random_state: int):
+    if model_type == "random_forest":
+        return RandomForestRegressor(
+            **params,
+            n_jobs=-1,
+            random_state=random_state,
+        )
+    if model_type == "hist_gradient_boosting":
+        return HistGradientBoostingRegressor(
+            **params,
+            random_state=random_state,
+        )
+    raise ValueError(f"Unsupported model_type: {model_type}")
 
 
 def _validation_gate_info(test_metrics: dict[str, float], min_test_r2: float) -> dict:
@@ -137,6 +144,7 @@ def main() -> None:
             search_space=cfg.training.hpo_search_space,
             n_trials=cfg.training.n_trials,
             cv_folds=cfg.training.cv_folds,
+            model_type=cfg.training.model_type,
             random_state=cfg.data.random_state,
             preprocessor_factory=preprocessor_factory,
         )
@@ -144,7 +152,11 @@ def main() -> None:
         mlflow.log_params({f"best_{key}": value for key, value in hpo_result.best_params.items()})
         mlflow.log_metric("best_cv_rmse", hpo_result.best_cv_rmse)
 
-        model = _build_model(hpo_result.best_params, random_state=cfg.data.random_state)
+        model = _build_model(
+            cfg.training.model_type,
+            hpo_result.best_params,
+            random_state=cfg.data.random_state,
+        )
         model.fit(x_train, y_train)
         y_pred = model.predict(x_test)
         test_metrics = compute_metrics(y_test, y_pred)
