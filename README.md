@@ -103,6 +103,55 @@ Shared **`mlflow-data`** volume is mounted on **both** `mlflow` and `api` so reg
   - `GET /ready` readiness (model/preprocessor loaded)
   - `GET /metrics` Prometheus scrape
 
+## Streamlit Dashboard
+
+Purpose: a demo-ready Streamlit interface for live prediction, batch scoring, MLflow visibility, monitoring, and documentation evidence.
+
+Local run:
+
+```powershell
+python -m pip install -r requirements.txt
+python -m pip install -r requirements-streamlit.txt
+python -m streamlit run src/dashboard/app.py --server.port 8501
+```
+
+```bash
+python -m pip install -r requirements.txt
+python -m pip install -r requirements-streamlit.txt
+python -m streamlit run src/dashboard/app.py --server.port 8501
+```
+
+Docker run:
+
+```powershell
+docker compose up --build
+```
+
+```bash
+docker compose up --build
+```
+
+URLs:
+- Dashboard: `http://localhost:8501`
+- API: `http://localhost:8000`
+- MLflow: `http://localhost:5001` (Compose maps host **5001** → MLflow)
+- Prometheus: `http://localhost:9090`
+
+Pages:
+- Overview
+- Live Prediction
+- Batch Prediction
+- MLflow Tracking
+- Model Registry
+- Monitoring & Drift
+- Documentation Evidence
+
+Production-style safeguards:
+- HTTP clients use timeout and structured failures (no user-facing crashes).
+- MLflow access is cached and wrapped with safe unavailable states.
+- Batch validation enforces empty and max-size checks.
+- Monitoring and evidence files render cleanly when files/services are missing.
+
 ## CI parity (test like production locally)
 
 GitHub Actions runs **lint → pytest + coverage (≥70%) → Pandera data tests → MLflow Production `validate_model.py`**.
