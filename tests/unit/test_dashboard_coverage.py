@@ -206,3 +206,46 @@ def test_main_routes_overview(st_mock):
     ):
         dash.main()
     po.assert_called_once()
+
+
+@patch("src.dashboard.app.requests.post")
+def test_safe_post_json_invalid_json_body(mock_post):
+    resp = MagicMock()
+    resp.status_code = 200
+    resp.json.side_effect = json.JSONDecodeError("x", "doc", 0)
+    resp.raise_for_status = MagicMock()
+    mock_post.return_value = resp
+    out = dash.safe_post_json("/predict", {})
+    assert out["ok"] is False
+
+
+@patch("src.dashboard.app.requests.post")
+def test_safe_post_json_timeout(mock_post):
+    import requests
+
+    mock_post.side_effect = requests.Timeout("t")
+    out = dash.safe_post_json("/predict", {})
+    assert out["ok"] is False
+
+
+@patch("src.dashboard.app.requests.post")
+def test_safe_post_json_request_error(mock_post):
+    import requests
+
+    mock_post.side_effect = requests.ConnectionError("x")
+    out = dash.safe_post_json("/predict", {})
+    assert out["ok"] is False
+
+
+@patch("src.dashboard.app.MlflowClient")
+def test_mlflow_latest_runs_exception(mock_client_cls):
+    mock_client_cls.side_effect = RuntimeError("boom")
+    out = dash.mlflow_latest_runs()
+    assert out["ok"] is False
+
+
+@patch("src.dashboard.app.MlflowClient")
+def test_mlflow_model_registry_exception(mock_client_cls):
+    mock_client_cls.side_effect = RuntimeError("boom")
+    out = dash.mlflow_model_registry("bike_share_regressor")
+    assert out["ok"] is False
