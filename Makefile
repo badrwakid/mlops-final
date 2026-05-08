@@ -1,6 +1,6 @@
 PYTHON ?= python
 
-.PHONY: repro train baseline monitor drift-report verify
+.PHONY: repro train baseline monitor drift-report verify dvc-push install-hooks
 
 repro:
 	$(PYTHON) -m dvc repro
@@ -19,3 +19,12 @@ drift-report:
 
 verify:
 	$(PYTHON) scripts/validate_model.py
+
+dvc-push:
+	$(PYTHON) -m dvc commit -f
+	$(PYTHON) -m dvc push
+
+install-hooks:
+	cp scripts/pre-push .git/hooks/pre-push
+	chmod +x .git/hooks/pre-push
+	@echo "Git pre-push hook installed — dvc push runs automatically before every git push."

@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# Git pre-push hook — runs automatically before every git push.
+# Commits any locally modified DVC-tracked files to the cache and
+# pushes them to the DagsHub remote so CI can dvc pull successfully.
+
+set -e
+
+echo "[pre-push] Syncing DVC artifacts to remote..."
+python -m dvc commit -f
+python -m dvc push
+echo "[pre-push] DVC push complete."
