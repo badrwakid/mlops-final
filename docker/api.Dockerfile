@@ -14,11 +14,14 @@ RUN pip install --upgrade pip && pip install -r requirements.txt
 COPY src ./src
 COPY configs ./configs
 COPY scripts ./scripts
+COPY docs ./docs
+COPY monitoring ./monitoring
+COPY README.md ./README.md
 COPY data/splits/preprocessor.pkl ./data/splits/preprocessor.pkl
 COPY data/splits/reference.parquet ./data/splits/reference.parquet
 COPY data/splits/model.pkl ./data/splits/model.pkl
 
-RUN chown -R app:app /app
+RUN mkdir -p monitoring/evidently_reports && chown -R app:app /app
 USER app
 
 ENV PYTHONPATH=/app

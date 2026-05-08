@@ -54,6 +54,7 @@ services:
       - "127.0.0.1:8000:8000"
     volumes:
       - mlflow-data:/mlflow
+      - ./monitoring/evidently_reports:/app/monitoring/evidently_reports
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
       interval: 10s
