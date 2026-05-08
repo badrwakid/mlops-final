@@ -28,6 +28,8 @@ data/splits/*
 !data/splits/preprocessor.pkl
 # Drift / dashboard POST /api/drift/run needs baseline split in the image; small pinned file (same as dvc.lock)
 !data/splits/reference.parquet
+# monitoring-validation CI job early-exit check requires production split; small file (53 KB)
+!data/splits/production.parquet
 
 # Models & artifacts (train writes locally; do not commit large pickles)
 *.pkl
