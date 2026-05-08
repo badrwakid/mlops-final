@@ -86,7 +86,7 @@ The embedded HTML dashboard reads the same fields; it shows **Production** when 
 
 ## Monitoring
 
-- Start observability stack: `docker compose up --build` (API `:8000`, MLflow UI **`5001`** on localhost, Prometheus `:9090`).
+- Start observability stack: `docker compose up --build` (API `:8000`, MLflow UI **`5001`** on localhost, Prometheus `:9090`, Grafana `:3000`).
 - Generate drift reports: `python -m monitoring.run_monitoring`.
 - Required monitoring artifacts must exist before running:
   - `data/splits/model.pkl`
@@ -152,6 +152,11 @@ URLs:
 - API metrics: `http://localhost:8000/metrics`
 - MLflow: `http://localhost:5001` (Compose maps host **5001** → MLflow)
 - Prometheus: `http://localhost:9090`
+- Grafana: `http://localhost:3000` (default login `admin` / `admin`)
+
+Grafana is provisioned automatically:
+- Datasource: Prometheus (`http://prometheus:9090` from inside Grafana container)
+- Dashboard: `Bike Sharing MLOps Monitoring` (from `monitoring/grafana/dashboards/bike_mlops_monitoring.json`)
 
 Required monitoring artifacts:
 - `monitoring/evidently_reports/drift_summary.json`
