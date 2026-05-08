@@ -28,23 +28,20 @@ jobs:
       - name: Pull monitoring artifacts from DVC or bootstrap with UCI + dvc repro (free)
         env:
           DVC_REMOTE_URL: ${{ secrets.DVC_REMOTE_URL }}
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_DEFAULT_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
+          DAGSHUB_TOKEN: ${{ secrets.DAGSHUB_TOKEN }}
         run: |
-          if [ -f data/splits/model.pkl ] && [ -f data/splits/preprocessor.pkl ] && [ -f data/splits/reference.parquet ] && [ -f data/splits/production.parquet ]; then
-            echo "monitoring artifacts already present"
-            exit 0
-          fi
           if [ -n "${DVC_REMOTE_URL}" ]; then
-            pip install "dvc[s3]==3.51.2"
+            pip install "dvc==3.51.2"
             dvc remote modify localremote url "${DVC_REMOTE_URL}"
+            dvc remote modify localremote auth basic
+            dvc remote modify localremote user badrwakid
+            dvc remote modify localremote password "${DAGSHUB_TOKEN}"
             dvc pull data/splits/model.pkl data/splits/preprocessor.pkl data/splits/reference.parquet data/splits/production.parquet
             exit 0
           fi
           echo "No DVC secrets: downloading UCI hour.csv and running dvc repro for splits (no cloud account)"
           python scripts/fetch_uci_hour_csv.py
-          dvc repro
+          MLFLOW_TRACKING_URI=file:./mlruns dvc repro
 
       - name: Run monitoring pipeline (operational)
         run: python -m monitoring.run_monitoring
