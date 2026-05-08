@@ -215,6 +215,7 @@ jobs:
         run: |
           docker compose build mlflow
           docker compose up -d mlflow
+          docker compose exec -T -u 0 mlflow sh -lc "mkdir -p /mlflow/mlruns && chown -R 1000:1000 /mlflow"
           echo "Waiting for MLflow health on http://127.0.0.1:5001 ..."
           ok=""
           for i in $(seq 1 40); do
