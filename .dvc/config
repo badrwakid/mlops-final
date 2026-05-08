@@ -3,4 +3,6 @@
 [cache]
     type = copy
 ['remote "localremote"']
-    url = ../dvc-storage
+    url = https://dagshub.com/badrwakid/mlops-final.dvc
+    auth = basic
+    user = badrwakid

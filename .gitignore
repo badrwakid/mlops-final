@@ -24,16 +24,10 @@ data/splits/*
 !data/splits/.gitkeep
 !data/splits/*.dvc
 !data/splits/metrics.json
-!data/splits/model.pkl
-!data/splits/preprocessor.pkl
-# Drift / dashboard POST /api/drift/run needs baseline split in the image; small pinned file (same as dvc.lock)
-!data/splits/reference.parquet
 
-# Models & artifacts (train writes locally; do not commit large pickles)
+# Models & artifacts — managed by DVC remote (dagshub), not git
 *.pkl
 *.joblib
-!data/splits/model.pkl
-!data/splits/preprocessor.pkl
 artifacts/
 logs/
 mlruns/

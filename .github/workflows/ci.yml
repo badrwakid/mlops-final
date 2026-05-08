@@ -106,18 +106,14 @@ jobs:
       - name: Pull raw artifact from DVC or bootstrap UCI data (free)
         env:
           DVC_REMOTE_URL: ${{ secrets.DVC_REMOTE_URL }}
-          # Required when DVC_REMOTE_URL is an S3 bucket (create IAM user with read access; never commit keys).
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_DEFAULT_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
+          DAGSHUB_TOKEN: ${{ secrets.DAGSHUB_TOKEN }}
         run: |
-          if [ -f data/raw/hour.csv ]; then
-            echo "raw artifact already present"
-            exit 0
-          fi
           if [ -n "${DVC_REMOTE_URL}" ]; then
-            pip install "dvc[s3]==3.51.2"
+            pip install "dvc==3.51.2"
             dvc remote modify localremote url "${DVC_REMOTE_URL}"
+            dvc remote modify localremote auth basic
+            dvc remote modify localremote user badrwakid
+            dvc remote modify localremote password "${DAGSHUB_TOKEN}"
             dvc pull data/raw/hour.csv
             exit 0
           fi
@@ -174,17 +170,14 @@ jobs:
       - name: Pull model artifacts from DVC or build with dvc repro (free)
         env:
           DVC_REMOTE_URL: ${{ secrets.DVC_REMOTE_URL }}
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_DEFAULT_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
+          DAGSHUB_TOKEN: ${{ secrets.DAGSHUB_TOKEN }}
         run: |
-          if [ -f data/splits/model.pkl ] && [ -f data/splits/preprocessor.pkl ] && [ -f data/splits/metrics.json ]; then
-            echo "model artifacts already present"
-            exit 0
-          fi
           if [ -n "${DVC_REMOTE_URL}" ]; then
-            pip install "dvc[s3]==3.51.2"
+            pip install "dvc==3.51.2"
             dvc remote modify localremote url "${DVC_REMOTE_URL}"
+            dvc remote modify localremote auth basic
+            dvc remote modify localremote user badrwakid
+            dvc remote modify localremote password "${DAGSHUB_TOKEN}"
             dvc pull data/splits/model.pkl data/splits/preprocessor.pkl
             exit 0
           fi
@@ -253,6 +246,11 @@ jobs:
       - name: Validate Compose file
         run: docker compose config --quiet
 
+      - name: Create placeholder artifacts for Docker build context
+        run: |
+          mkdir -p data/splits
+          touch data/splits/preprocessor.pkl data/splits/reference.parquet
+
       - name: Build production service images
         run: docker compose build mlflow api dashboard
 
@@ -285,17 +283,14 @@ jobs:
       - name: Resolve monitoring artifacts (DVC pull or UCI + dvc repro)
         env:
           DVC_REMOTE_URL: ${{ secrets.DVC_REMOTE_URL }}
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_DEFAULT_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
+          DAGSHUB_TOKEN: ${{ secrets.DAGSHUB_TOKEN }}
         run: |
-          if [ -f data/splits/model.pkl ] && [ -f data/splits/preprocessor.pkl ] && [ -f data/splits/reference.parquet ] && [ -f data/splits/production.parquet ]; then
-            echo "monitoring artifacts already present"
-            exit 0
-          fi
           if [ -n "${DVC_REMOTE_URL}" ]; then
-            pip install "dvc[s3]==3.51.2"
+            pip install "dvc==3.51.2"
             dvc remote modify localremote url "${DVC_REMOTE_URL}"
+            dvc remote modify localremote auth basic
+            dvc remote modify localremote user badrwakid
+            dvc remote modify localremote password "${DAGSHUB_TOKEN}"
             dvc pull data/splits/model.pkl data/splits/preprocessor.pkl data/splits/reference.parquet data/splits/production.parquet
             exit 0
           fi
