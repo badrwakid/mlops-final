@@ -22,4 +22,7 @@ omit = [
     "src/training/hpo.py",
     "src/training/registry.py",
     "src/serving/metrics.py",
+    # Streamlit page-rendering functions require a live Streamlit runtime;
+    # helper functions (pure utils, file-IO, HTTP) are tested in test_dashboard_coverage.py
+    "src/dashboard/app.py",
 ]

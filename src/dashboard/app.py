@@ -337,8 +337,12 @@ def _drift_share(summary: dict[str, Any]) -> float | None:
     return None
 
 
+def _positive(value: float | None) -> bool:
+    return value is not None and value > 0.0
+
+
 def _progress_fraction(share: float | None, threshold: float | None) -> float:
-    if share is None or threshold is None or threshold <= 0:
+    if share is None or not _positive(threshold):
         return 0.0
     return max(0.0, min(1.0, share / threshold))
 
