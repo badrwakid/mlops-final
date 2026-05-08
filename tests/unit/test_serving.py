@@ -114,3 +114,8 @@ def test_strict_production_raises_when_mlflow_load_fails(monkeypatch):
 
     with pytest.raises(RuntimeError, match="Production registry model required"):
         serving_app._load_model(_cfg())
+
+
+def test_reference_dataset_path_matches_params_yaml():
+    p = serving_app.reference_dataset_path()
+    assert p == serving_app.ROOT_DIR / "data" / "splits" / "reference.parquet"

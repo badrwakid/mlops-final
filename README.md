@@ -52,7 +52,15 @@ Docker Compose enables **`PRODUCTION_STRICT=true`** on the API: **only** the MLf
 **Bring-up order (required):**
 
 1. Start MLflow and wait until healthy: `docker compose up -d mlflow`
-2. **Seed Production** once (host maps MLflow to **`5001`**):
+2. **Seed Production** so artifacts land on the **same Docker volume** as MLflow (recommended):
+
+   ```bash
+   docker compose run --rm --entrypoint python api scripts/seed_mlflow_production.py
+   ```
+
+   That uses **`MLFLOW_TRACKING_URI=http://mlflow:5000`** from Compose and writes runs under **`/mlflow/mlruns`** where both **`mlflow`** and **`api`** containers can read them.
+
+   Optional from the host (maps MLflow UI to **`5001`**):
 
    `MLFLOW_TRACKING_URI=http://127.0.0.1:5001 PYTHONPATH=. python scripts/seed_mlflow_production.py`
 
@@ -61,6 +69,14 @@ Docker Compose enables **`PRODUCTION_STRICT=true`** on the API: **only** the MLf
 3. Start the rest: `docker compose up -d api prometheus`
 
 Shared **`mlflow-data`** volume is mounted on **both** `mlflow` and `api` so registry artifact paths resolve inside the API container.
+
+**Verify production semantics** (API must report **`load_source: registry_production`** and dashboard **`model_load.registry_satisfied: true`**):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/verify_production_stack.ps1
+```
+
+The embedded HTML dashboard reads the same fields; it shows **Production** when the inference model is the MLflow **Production** stage artifact, **local** only for pickle / env override paths.
 
 **Outside Docker**, unset **`PRODUCTION_STRICT`** for local development if you need pickle fallback; **`REQUIRE_REGISTRY_MODEL`** alone still forbids fallback but historically allowed a running app without a model when load threw elsewhere — prefer **`PRODUCTION_STRICT`** for “fail closed.” **`SERVE_USE_LOCAL_MODEL_ONLY`** is incompatible with strict production.
 
@@ -102,6 +118,7 @@ Shared **`mlflow-data`** volume is mounted on **both** `mlflow` and `api` so reg
   - `GET /health` liveness
   - `GET /ready` readiness (model/preprocessor loaded)
   - `GET /metrics` Prometheus scrape
+- **Interactive drift from the API** (`POST /api/drift/run`, used by the HTML dashboard “Run drift check”): requires **`data/splits/reference.parquet`** (path from `configs/params.yaml`, produced by **`dvc repro`**) and **`artifacts/prediction_log.csv`** with **at least 30** rows. Predictions are appended when you call **`POST /predict`** (or batch); the log file is created under the API working directory (project root / container `/app`).
 
 ## Streamlit Dashboard
 

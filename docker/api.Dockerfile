@@ -13,8 +13,9 @@ RUN pip install --upgrade pip && pip install -r requirements.txt
 
 COPY src ./src
 COPY configs ./configs
+COPY scripts ./scripts
 COPY data/splits/preprocessor.pkl ./data/splits/preprocessor.pkl
-COPY data/splits/model.pkl ./data/splits/model.pkl
+COPY data/splits/reference.parquet ./data/splits/reference.parquet
 
 RUN chown -R app:app /app
 USER app

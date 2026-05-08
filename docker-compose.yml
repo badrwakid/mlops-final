@@ -70,7 +70,8 @@ services:
     environment:
       API_BASE_URL: http://api:8000
       MLFLOW_TRACKING_URI: http://mlflow:5000
-      MLFLOW_UI_URL: http://localhost:5000
+      # Host browser: Compose maps MLflow UI to localhost:5001 (see mlflow service ports).
+      MLFLOW_UI_URL: http://localhost:5001
       PROMETHEUS_URL: http://localhost:9090
       MLFLOW_MODEL_NAME: bike_share_regressor
       PROJECT_ROOT: /app

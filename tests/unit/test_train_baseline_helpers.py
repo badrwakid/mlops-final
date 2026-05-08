@@ -1,25 +1,27 @@
-"""Small-path coverage for train_baseline helpers."""
+"""Coverage for train_baseline helpers (no full MLflow run)."""
+
+from __future__ import annotations
 
 from types import SimpleNamespace
 
-from src.training.train_baseline import _feature_columns, _resolve_tracking_uri
+from src.training import train_baseline as tb
 
 
-def test_resolve_tracking_uri_prefers_env(monkeypatch):
-    monkeypatch.setenv("MLFLOW_TRACKING_URI", "http://from-env")
-    assert _resolve_tracking_uri("http://configured") == "http://from-env"
+def test_resolve_tracking_uri_env_override(monkeypatch):
+    monkeypatch.setenv("MLFLOW_TRACKING_URI", "http://env:5000")
+    assert tb._resolve_tracking_uri("http://cfg:5000") == "http://env:5000"
 
 
-def test_resolve_tracking_uri_fallback_when_env_missing(monkeypatch):
+def test_resolve_tracking_uri_from_config(monkeypatch):
     monkeypatch.delenv("MLFLOW_TRACKING_URI", raising=False)
-    assert _resolve_tracking_uri("http://configured") == "http://configured"
+    assert tb._resolve_tracking_uri("http://cfg:5000") == "http://cfg:5000"
 
 
-def test_feature_columns_concatenates_lists():
+def test_feature_columns():
     cfg = SimpleNamespace(
         data=SimpleNamespace(
             numeric_features=["a", "b"],
             categorical_features=["c"],
-        ),
+        )
     )
-    assert _feature_columns(cfg) == ["a", "b", "c"]
+    assert tb._feature_columns(cfg) == ["a", "b", "c"]

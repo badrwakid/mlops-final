@@ -124,6 +124,12 @@ def test_dashboard_routes_and_helper_endpoints(client):
     payload = summary.json()
     assert "runtime" in payload
     assert "drift" in payload
+    # Dashboard "Production" vs "local" label uses these fields (must match registry fixture).
+    ml = payload.get("model_load") or {}
+    assert ml.get("registry_satisfied") is True
+    assert ml.get("source") == "registry_production"
+    mi = payload.get("model") or {}
+    assert mi.get("registry_production_satisfied") is True
 
     css = client.get("/static/dashboard.css")
     assert css.status_code == 200
@@ -239,7 +245,7 @@ def test_drift_run_and_latest_endpoints(client, monkeypatch, tmp_path):
     rows.extend(["100,2,6,12,0,3,1,1,0.6,0.6,0.4,0.2"] * 35)
     pred_path.write_text("\n".join(rows) + "\n", encoding="utf-8")
 
-    monkeypatch.setattr(serving_module, "REFERENCE_PATH", ref_path)
+    monkeypatch.setattr(serving_module, "reference_dataset_path", lambda: ref_path)
     monkeypatch.setattr(serving_module, "PREDICTION_LOG_PATH", pred_path)
 
     def _fake_run_and_log(_reference_path, _df, experiment_name="bike_sharing_drift"):  # noqa: ANN001
