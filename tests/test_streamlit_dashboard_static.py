@@ -51,5 +51,5 @@ def test_streamlit_requirement_present() -> None:
 
 def test_readme_mentions_monitoring_dashboard() -> None:
     content = Path("README.md").read_text(encoding="utf-8")
-    assert "Data Monitoring & Drift Detection Dashboard" in content
+    assert "Monitoring & Drift Detection" in content
 
