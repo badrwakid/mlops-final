@@ -11,6 +11,8 @@ RUN chown -R mlflow:mlflow /mlflow
 EXPOSE 5000
 CMD ["mlflow", "server", \
      "--backend-store-uri", "sqlite:///mlflow.db", \
-     "--default-artifact-root", "/mlflow/mlruns", \
+     "--default-artifact-root", "mlflow-artifacts:/", \
+     "--artifacts-destination", "/mlflow/mlruns", \
+     "--serve-artifacts", \
      "--host", "0.0.0.0", \
      "--port", "5000"]
