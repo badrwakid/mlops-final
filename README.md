@@ -70,7 +70,7 @@ Docker Compose enables **`PRODUCTION_STRICT=true`** on the API: **only** the MLf
 
 Shared **`mlflow-data`** volume is mounted on **both** `mlflow` and `api` so registry artifact paths resolve inside the API container.
 
-Before **`docker compose build api`**, ensure **`data/splits/reference.parquet`** exists (same as DVC split stage: run **`dvc repro`** or **`dvc pull`**). The API image copies it so **`POST /api/drift/run`** can resolve the baseline reference inside the container.
+**`data/splits/reference.parquet`** is **tracked in git** (small baseline split) so **`docker compose build api`** and the dashboard drift check work on a **fresh clone** without DVC. To recreate from raw data, run **`dvc repro`** (or **`dvc pull`**) and commit if the split changes.
 
 **Verify production semantics** (API must report **`load_source: registry_production`** and dashboard **`model_load.registry_satisfied: true`**):
 
@@ -120,7 +120,7 @@ The embedded HTML dashboard reads the same fields; it shows **Production** when 
   - `GET /health` liveness
   - `GET /ready` readiness (model/preprocessor loaded)
   - `GET /metrics` Prometheus scrape
-- **Interactive drift from the API** (`POST /api/drift/run`, used by the HTML dashboard “Run drift check”): requires **`data/splits/reference.parquet`** (path from `configs/params.yaml`, produced by **`dvc repro`**) and **`artifacts/prediction_log.csv`** with **at least 30** rows. Predictions are appended when you call **`POST /predict`** (or batch); the log file is created under the API working directory (project root / container `/app`).
+- **Interactive drift from the API** (`POST /api/drift/run`, used by the HTML dashboard “Run drift check”): requires **`data/splits/reference.parquet`** in the container (baked from git; path from `configs/params.yaml` or **`DRIFT_REFERENCE_PARQUET`**) and **`artifacts/prediction_log.csv`** with **at least 30** rows. Predictions are appended when you call **`POST /predict`** (or batch); the log file is created under the API working directory (project root / container `/app`).
 
 ## Streamlit Dashboard
 
@@ -173,7 +173,10 @@ Production-style safeguards:
 
 ## GitHub Actions + DVC (raw data and models stay out of git)
 
-**Do not commit** `data/raw/hour.csv` or other large artifacts. The **CI** workflow (`.github/workflows/ci.yml`) downloads them with **`dvc pull`** when you configure:
+**Do not commit** `data/raw/hour.csv` or other large artifacts. The **CI** workflow (`.github/workflows/ci.yml`) either:
+
+- **No secrets (free, no card):** downloads **`hour.csv`** from the official UCI archive via **`scripts/fetch_uci_hour_csv.py`**, and runs **`dvc repro`** when splits/models are missing on the runner (see **`docs/github-ci-gate.md`**).
+- **With a DVC remote (faster / team shared cache):** **`dvc pull`** after you configure:
 
 1. A **DVC remote** you control (e.g. **S3** prefix): locally run  
    `pip install "dvc[s3]==3.51.2"` then  
@@ -191,7 +194,7 @@ Full checklist: **`docs/github-ci-gate.md`**.
 
 ## CI parity (test like production locally)
 
-GitHub Actions runs **lint → pytest + coverage (≥70%) → Pandera data tests → MLflow Production `validate_model.py`**.
+GitHub Actions runs **lint → pytest + coverage (≥70%) → Pandera data tests → Docker Compose builds (`mlflow`, `api`, `dashboard`) → MLflow Production `validate_model.py` → operational drift (`monitoring.run_monitoring`)**.
 
 From the repo root (PowerShell):
 
@@ -199,9 +202,9 @@ From the repo root (PowerShell):
 powershell -ExecutionPolicy Bypass -File scripts/run_full_ci_local.ps1
 ```
 
-By default this matches CI end-to-end: it checks required artifacts (including **`data/raw/hour.csv`**), starts a local MLflow server on **`127.0.0.1:5000`** with the same SQLite layout as the **`model-validation`** job, runs **`scripts/seed_mlflow_production.py`**, then **`scripts/validate_model.py`** with **`REQUIRE_LOCAL_MODEL_ARTIFACTS=1`**.
+By default this matches CI end-to-end: it checks required artifacts (including **`data/raw/hour.csv`**), starts the **same** MLflow service as production via **`docker compose up -d mlflow`** (host UI/URI **`http://127.0.0.1:5001`**, see `docker-compose.yml`), runs **`scripts/seed_mlflow_production.py`**, then **`scripts/validate_model.py`** with **`REQUIRE_LOCAL_MODEL_ARTIFACTS=1`**, then runs **`docker compose down mlflow`**.
 
-If you already run MLflow elsewhere (e.g. Docker on **`5001`**), set **`MLFLOW_TRACKING_URI`** before the script so step 5 seeds and validates against that server instead of spawning port **5000**.
+If you already have MLflow running, set **`MLFLOW_TRACKING_URI`** before the script so step 5 uses that server and does not start Compose.
 
 The script clears **`SKIP_MLFLOW_REGISTRY`** for the validation step so a developer shell cannot accidentally run a partial gate (full load of **`models:/…/Production`** is always exercised).
 

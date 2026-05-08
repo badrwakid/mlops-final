@@ -54,7 +54,14 @@ DRIFT_EXPERIMENT_NAME = "bike_sharing_drift"
 
 
 def reference_dataset_path() -> Path:
-    """Drift baseline reference split (DVC: data/splits/reference.parquet)."""
+    """Drift baseline reference split (DVC: data/splits/reference.parquet).
+
+    Override for deployment: set DRIFT_REFERENCE_PARQUET to an absolute or repo-relative path.
+    """
+    override = (os.environ.get("DRIFT_REFERENCE_PARQUET") or "").strip()
+    if override:
+        p = Path(override)
+        return p if p.is_absolute() else (ROOT_DIR / p)
     cfg = load_config()
     p = Path(cfg.paths.reference)
     return p if p.is_absolute() else (ROOT_DIR / p)
@@ -963,8 +970,9 @@ def drift_run() -> dict[str, Any]:
         raise HTTPException(
             status_code=400,
             detail=(
-                f"Reference dataset missing at {ref_path.as_posix()} — run `dvc repro` / `dvc pull` "
-                "so data/splits/reference.parquet exists (same split used for monitoring)."
+                f"Reference dataset missing at {ref_path.as_posix()}. "
+                "Pull the latest commit (file is tracked in git), or run `dvc repro` / `dvc pull`, "
+                "or set DRIFT_REFERENCE_PARQUET to a parquet with the same schema as the split."
             ),
         )
     df = pd.read_csv(PREDICTION_LOG_PATH).tail(500)

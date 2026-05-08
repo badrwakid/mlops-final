@@ -26,6 +26,8 @@ data/splits/*
 !data/splits/metrics.json
 !data/splits/model.pkl
 !data/splits/preprocessor.pkl
+# Drift / dashboard POST /api/drift/run needs baseline split in the image; small pinned file (same as dvc.lock)
+!data/splits/reference.parquet
 
 # Models & artifacts (train writes locally; do not commit large pickles)
 *.pkl
