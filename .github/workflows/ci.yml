@@ -254,7 +254,7 @@ jobs:
           touch data/splits/preprocessor.pkl data/splits/reference.parquet data/splits/model.pkl
 
       - name: Build production service images
-        run: docker compose build mlflow api dashboard
+        run: docker compose build mlflow api
 
   monitoring-validation:
     name: monitoring-validation

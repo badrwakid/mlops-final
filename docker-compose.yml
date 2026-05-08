@@ -92,33 +92,6 @@ services:
       - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
       - grafana-data:/var/lib/grafana
 
-  dashboard:
-    build:
-      context: .
-      dockerfile: docker/streamlit.Dockerfile
-    image: bike-dashboard:latest
-    container_name: dashboard
-    depends_on:
-      api:
-        condition: service_healthy
-      mlflow:
-        condition: service_healthy
-    environment:
-      API_BASE_URL: http://api:8000
-      MLFLOW_TRACKING_URI: http://mlflow:5000
-      MLFLOW_UI_URL: http://localhost:5001
-      PROMETHEUS_URL: http://localhost:9090
-      MLFLOW_MODEL_NAME: bike_share_regressor
-      PROJECT_ROOT: /app
-    ports:
-      - "8501:8501"
-    volumes:
-      - ./logs:/app/logs
-    healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8501/_stcore/health')"]
-      interval: 10s
-      timeout: 3s
-      retries: 5
 
 volumes:
   mlflow-data:
