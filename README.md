@@ -122,9 +122,9 @@ The embedded HTML dashboard reads the same fields; it shows **Production** when 
   - `GET /metrics` Prometheus scrape
 - **Interactive drift from the API** (`POST /api/drift/run`, used by the HTML dashboard “Run drift check”): requires **`data/splits/reference.parquet`** in the container (baked from git; path from `configs/params.yaml` or **`DRIFT_REFERENCE_PARQUET`**) and **`artifacts/prediction_log.csv`** with **at least 30** rows. Predictions are appended when you call **`POST /predict`** (or batch); the log file is created under the API working directory (project root / container `/app`).
 
-## Streamlit Dashboard
+## Data Monitoring & Drift Detection Dashboard
 
-Purpose: a demo-ready Streamlit interface for live prediction, batch scoring, MLflow visibility, monitoring, and documentation evidence.
+Purpose: monitoring-first Streamlit command center for Evidently drift outputs, Prometheus metrics availability, runbook decisions, and artifact evidence.
 
 Local run:
 
@@ -134,42 +134,47 @@ python -m pip install -r requirements-streamlit.txt
 python -m streamlit run src/dashboard/app.py --server.port 8501
 ```
 
-```bash
-python -m pip install -r requirements.txt
-python -m pip install -r requirements-streamlit.txt
-python -m streamlit run src/dashboard/app.py --server.port 8501
-```
-
-Docker run:
+Generate monitoring artifacts:
 
 ```powershell
-docker compose up --build
+python -m monitoring.run_monitoring
 ```
 
-```bash
+Docker:
+
+```powershell
 docker compose up --build
 ```
 
 URLs:
 - Dashboard: `http://localhost:8501`
 - API: `http://localhost:8000`
+- API metrics: `http://localhost:8000/metrics`
 - MLflow: `http://localhost:5001` (Compose maps host **5001** → MLflow)
 - Prometheus: `http://localhost:9090`
 
-Pages:
-- Overview
-- Live Prediction
-- Batch Prediction
-- MLflow Tracking
-- Model Registry
-- Monitoring & Drift
+Required monitoring artifacts:
+- `monitoring/evidently_reports/drift_summary.json`
+- `monitoring/evidently_reports/baseline.html`
+- `monitoring/evidently_reports/drift.html`
+- `monitoring/evidently_reports/interpretation.md`
+- `data/splits/reference.parquet`
+- `data/splits/production.parquet`
+
+Dashboard pages:
+- Drift Overview
+- Feature Drift Analysis
+- Evidently Reports
+- Prometheus Monitoring
+- Monitoring Runbook
+- Model & Data Context
 - Documentation Evidence
 
 Production-style safeguards:
-- HTTP clients use timeout and structured failures (no user-facing crashes).
-- MLflow access is cached and wrapped with safe unavailable states.
-- Batch validation enforces empty and max-size checks.
-- Monitoring and evidence files render cleanly when files/services are missing.
+- Safe API timeouts and unavailable states for `/health`, `/ready`, and `/metrics`.
+- Safe file readers for missing/malformed JSON/YAML/text monitoring artifacts.
+- Sidebar refresh control (`st.cache_data.clear`) for manual state refresh.
+- No user-facing stack traces; internal issues logged to `logs/streamlit_dashboard.log`.
 
 ## GitHub Actions + DVC (raw data and models stay out of git)
 
