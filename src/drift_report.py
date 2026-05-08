@@ -36,43 +36,60 @@ CATEGORICAL_FEATURES = [
     "workingday",
     "weathersit",
 ]
-REQUIRED_COLUMNS = FEATURE_COLS + ["prediction"]
+REQUIRED_COLUMNS = FEATURE_COLS
 
 
-def build_column_mapping(*, include_target: bool) -> ColumnMapping:
+def build_column_mapping(
+    *,
+    include_target: bool,
+    include_prediction: bool,
+    numerical_features: list[str],
+    categorical_features: list[str],
+) -> ColumnMapping:
     cm = ColumnMapping()
-    cm.prediction = "prediction"
+    if include_prediction:
+        cm.prediction = "prediction"
+    else:
+        cm.prediction = None
     if include_target:
         cm.target = "target"
-    cm.numerical_features = NUMERICAL_FEATURES
-    cm.categorical_features = CATEGORICAL_FEATURES
+    cm.numerical_features = numerical_features
+    cm.categorical_features = categorical_features
     return cm
 
 
-def _prepare_current_df(current_df: pd.DataFrame) -> pd.DataFrame:
+def _prepare_current_df(current_df: pd.DataFrame, *, include_prediction: bool) -> pd.DataFrame:
     prepared = current_df.copy()
-    for col in REQUIRED_COLUMNS:
+    required_columns = REQUIRED_COLUMNS + (["prediction"] if include_prediction else [])
+    for col in required_columns:
         if col not in prepared.columns:
             prepared[col] = pd.NA
-    prepared = prepared[REQUIRED_COLUMNS]
-    for col in NUMERICAL_FEATURES + ["prediction"]:
+    prepared = prepared[required_columns]
+    numeric_cols = NUMERICAL_FEATURES + (["prediction"] if include_prediction else [])
+    for col in numeric_cols:
         prepared[col] = pd.to_numeric(prepared[col], errors="coerce")
     for col in CATEGORICAL_FEATURES:
         prepared[col] = pd.to_numeric(prepared[col], errors="coerce").astype("Int64")
-    return prepared.dropna(subset=["prediction"]).reset_index(drop=True)
+    if include_prediction:
+        prepared = prepared.dropna(subset=["prediction"])
+    return prepared.reset_index(drop=True)
 
 
-def _prepare_reference_df(reference: pd.DataFrame) -> pd.DataFrame:
+def _prepare_reference_df(reference: pd.DataFrame, *, include_prediction: bool) -> pd.DataFrame:
     prepared = reference.copy()
-    for col in REQUIRED_COLUMNS:
+    required_columns = REQUIRED_COLUMNS + (["prediction"] if include_prediction else [])
+    for col in required_columns:
         if col not in prepared.columns:
             prepared[col] = pd.NA
-    prepared = prepared[REQUIRED_COLUMNS]
-    for col in NUMERICAL_FEATURES + ["prediction"]:
+    prepared = prepared[required_columns]
+    numeric_cols = NUMERICAL_FEATURES + (["prediction"] if include_prediction else [])
+    for col in numeric_cols:
         prepared[col] = pd.to_numeric(prepared[col], errors="coerce")
     for col in CATEGORICAL_FEATURES:
         prepared[col] = pd.to_numeric(prepared[col], errors="coerce").astype("Int64")
-    return prepared.dropna(subset=["prediction"]).reset_index(drop=True)
+    if include_prediction:
+        prepared = prepared.dropna(subset=["prediction"])
+    return prepared.reset_index(drop=True)
 
 
 def generate_drift_report(reference_path: str, current_df: pd.DataFrame, out_dir: str):
@@ -80,14 +97,50 @@ def generate_drift_report(reference_path: str, current_df: pd.DataFrame, out_dir
     out.mkdir(parents=True, exist_ok=True)
 
     reference = pd.read_parquet(reference_path)
-    reference_prepared = _prepare_reference_df(reference)
-    current_prepared = _prepare_current_df(current_df)
+    include_prediction = (
+        "prediction" in reference.columns
+        and reference["prediction"].notna().any()
+        and "prediction" in current_df.columns
+        and current_df["prediction"].notna().any()
+    )
     include_target = (
         "target" in reference.columns
         and "target" in current_df.columns
         and current_df["target"].notna().any()
     )
-    column_mapping = build_column_mapping(include_target=include_target)
+    reference_prepared = _prepare_reference_df(reference, include_prediction=include_prediction)
+    current_prepared = _prepare_current_df(current_df, include_prediction=include_prediction)
+    usable_numerical = [
+        c
+        for c in NUMERICAL_FEATURES
+        if c in reference_prepared.columns
+        and c in current_prepared.columns
+        and reference_prepared[c].notna().any()
+        and current_prepared[c].notna().any()
+    ]
+    usable_categorical = [
+        c
+        for c in CATEGORICAL_FEATURES
+        if c in reference_prepared.columns
+        and c in current_prepared.columns
+        and reference_prepared[c].notna().any()
+        and current_prepared[c].notna().any()
+    ]
+    keep_cols = usable_numerical + usable_categorical
+    if include_prediction:
+        keep_cols.append("prediction")
+    if include_target:
+        keep_cols.append("target")
+    if not usable_numerical and not usable_categorical:
+        raise ValueError("No overlapping non-empty drift features between reference and current datasets.")
+    reference_prepared = reference_prepared[keep_cols]
+    current_prepared = current_prepared[keep_cols]
+    column_mapping = build_column_mapping(
+        include_target=include_target,
+        include_prediction=include_prediction,
+        numerical_features=usable_numerical,
+        categorical_features=usable_categorical,
+    )
     metrics = [DataDriftPreset(), DataQualityPreset()]
     if include_target:
         metrics.insert(1, TargetDriftPreset())

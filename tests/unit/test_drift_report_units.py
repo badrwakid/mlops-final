@@ -10,16 +10,26 @@ from src.drift_report import (
 
 
 def test_build_column_mapping():
-    m = build_column_mapping(include_target=True)
+    m = build_column_mapping(
+        include_target=True,
+        include_prediction=True,
+        numerical_features=["temp"],
+        categorical_features=["season"],
+    )
     assert m.prediction == "prediction"
     assert m.target == "target"
-    m2 = build_column_mapping(include_target=False)
-    assert m2.prediction == "prediction"
+    m2 = build_column_mapping(
+        include_target=False,
+        include_prediction=False,
+        numerical_features=["temp"],
+        categorical_features=["season"],
+    )
+    assert m2.prediction is None
     assert m2.numerical_features == m.numerical_features
 
 
 def test_prepare_current_df_fills_and_numeric():
     df = pd.DataFrame({"season": [1], "prediction": [1.0]})
-    out = _prepare_current_df(df)
+    out = _prepare_current_df(df, include_prediction=True)
     assert len(out) >= 1
     assert "prediction" in out.columns

@@ -7,7 +7,6 @@ RUN pip install --upgrade pip && pip install mlflow==2.13.0
 RUN useradd -m -u 1000 mlflow
 WORKDIR /mlflow
 RUN chown -R mlflow:mlflow /mlflow
-USER mlflow
 
 EXPOSE 5000
 CMD ["mlflow", "server", \
