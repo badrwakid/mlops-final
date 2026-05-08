@@ -183,7 +183,9 @@ jobs:
           fi
           echo "No DVC secrets: fetch UCI raw data and run full pipeline (deterministic; no paid cloud)"
           python scripts/fetch_uci_hour_csv.py
-          dvc repro
+          # Use local file URI so the train stage can log to MLflow without a running server.
+          # The Docker MLflow instance starts in a later step for the actual validation gate.
+          MLFLOW_TRACKING_URI=file:./mlruns dvc repro
 
       - name: Verify model artifacts are present
         run: |
@@ -296,7 +298,7 @@ jobs:
           fi
           echo "Bootstrap from UCI + full pipeline (operational monitoring; no cloud)"
           python scripts/fetch_uci_hour_csv.py
-          dvc repro
+          MLFLOW_TRACKING_URI=file:./mlruns dvc repro
 
       - name: Operational drift pipeline (Evidently; synthetic demo disabled in params)
         run: python -m monitoring.run_monitoring
