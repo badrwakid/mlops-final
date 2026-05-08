@@ -70,6 +70,8 @@ Docker Compose enables **`PRODUCTION_STRICT=true`** on the API: **only** the MLf
 
 Shared **`mlflow-data`** volume is mounted on **both** `mlflow` and `api` so registry artifact paths resolve inside the API container.
 
+Before **`docker compose build api`**, ensure **`data/splits/reference.parquet`** exists (same as DVC split stage: run **`dvc repro`** or **`dvc pull`**). The API image copies it so **`POST /api/drift/run`** can resolve the baseline reference inside the container.
+
 **Verify production semantics** (API must report **`load_source: registry_production`** and dashboard **`model_load.registry_satisfied: true`**):
 
 ```powershell
