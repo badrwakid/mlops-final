@@ -17,6 +17,23 @@ services:
       timeout: 3s
       retries: 5
 
+  seed-mlflow:
+    build:
+      context: .
+      dockerfile: docker/api.Dockerfile
+    image: bike-api:latest
+    container_name: seed-mlflow
+    restart: "no"
+    depends_on:
+      mlflow:
+        condition: service_healthy
+    environment:
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+      PYTHONPATH: /app
+    volumes:
+      - mlflow-data:/mlflow
+    command: python scripts/seed_mlflow_production.py
+
   api:
     build:
       context: .
@@ -27,14 +44,14 @@ services:
     depends_on:
       mlflow:
         condition: service_healthy
+      seed-mlflow:
+        condition: service_completed_successfully
     environment:
       MLFLOW_TRACKING_URI: http://mlflow:5000
       MLFLOW_PUBLIC_UI_URL: http://localhost:5001
-      # Hard production: MLflow Production only (no pickle fallback); process exits if model/preprocessor load fails.
       PRODUCTION_STRICT: "true"
     ports:
       - "127.0.0.1:8000:8000"
-    # Share artifact store with mlflow so registry URIs under /mlflow/mlruns resolve inside the API container.
     volumes:
       - mlflow-data:/mlflow
     healthcheck:
@@ -70,7 +87,6 @@ services:
     environment:
       API_BASE_URL: http://api:8000
       MLFLOW_TRACKING_URI: http://mlflow:5000
-      # Host browser: Compose maps MLflow UI to localhost:5001 (see mlflow service ports).
       MLFLOW_UI_URL: http://localhost:5001
       PROMETHEUS_URL: http://localhost:9090
       MLFLOW_MODEL_NAME: bike_share_regressor
