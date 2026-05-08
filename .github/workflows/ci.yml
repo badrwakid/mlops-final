@@ -116,7 +116,7 @@ jobs:
             exit 0
           fi
           if [ -z "${DVC_REMOTE_URL}" ]; then
-            echo "ERROR: data/raw/hour.csv missing and DVC_REMOTE_URL secret is not set."
+            echo "::error title=DVC remote missing::data/raw/hour.csv not in clone and DVC_REMOTE_URL secret is unset. Configure GitHub Actions secrets and push data with DVC — see docs/github-ci-gate.md"
             exit 1
           fi
           pip install "dvc[s3]==3.51.2"
@@ -181,7 +181,7 @@ jobs:
             exit 0
           fi
           if [ -z "${DVC_REMOTE_URL}" ]; then
-            echo "ERROR: model artifacts missing and DVC_REMOTE_URL secret is not set."
+            echo "::error title=DVC remote missing::model artifacts missing and DVC_REMOTE_URL secret is unset. Configure secrets and dvc push — see docs/github-ci-gate.md"
             exit 1
           fi
           pip install "dvc[s3]==3.51.2"

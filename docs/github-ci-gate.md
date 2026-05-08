@@ -1,5 +1,7 @@
 # GitHub + CI as the shared gate
 
+Large datasets and trained artifacts (**`data/raw/hour.csv`**, splits, **`model.pkl`**) are **not stored in Git**. They live in your **DVC remote** (e.g. S3). GitHub Actions runs **`dvc pull`** after rewriting `localremote` to **`DVC_REMOTE_URL`** — set that URI plus AWS credentials as repository **Secrets** (see table below). Locally you must **`dvc push`** at least once after **`dvc repro`** so the remote has those files.
+
 Team workflow for this repo: **branch → run `scripts/run_full_ci_local.ps1` locally → open Pull Request → merge** (no required teammate approval on GitHub; use Issues if your instructor still wants planning evidence).
 
 ## Repository

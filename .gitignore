@@ -17,8 +17,6 @@ env/
 data/raw/*
 !data/raw/.gitkeep
 !data/raw/*.dvc
-# CI / fresh clone: UCI Bike Sharing hour.csv (~1.2 MB) so Pandera job runs without DVC_REMOTE_URL
-!data/raw/hour.csv
 data/processed/*
 !data/processed/.gitkeep
 !data/processed/*.dvc

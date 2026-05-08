@@ -171,6 +171,24 @@ Production-style safeguards:
 - Batch validation enforces empty and max-size checks.
 - Monitoring and evidence files render cleanly when files/services are missing.
 
+## GitHub Actions + DVC (raw data and models stay out of git)
+
+**Do not commit** `data/raw/hour.csv` or other large artifacts. The **CI** workflow (`.github/workflows/ci.yml`) downloads them with **`dvc pull`** when you configure:
+
+1. A **DVC remote** you control (e.g. **S3** prefix): locally run  
+   `pip install "dvc[s3]==3.51.2"` then  
+   `dvc remote modify localremote url s3://YOUR_BUCKET/YOUR_PREFIX`
+2. **`dvc push`** after **`dvc repro`** so **`hour.csv`**, splits, and models exist on that remote.
+3. **GitHub repository secrets** (same URI as step 1): **`DVC_REMOTE_URL`**, and if using S3 also **`AWS_ACCESS_KEY_ID`**, **`AWS_SECRET_ACCESS_KEY`**, **`AWS_DEFAULT_REGION`**.
+
+```bash
+gh secret set DVC_REMOTE_URL -b"s3://YOUR_BUCKET/YOUR_PREFIX"
+```
+
+Full checklist: **`docs/github-ci-gate.md`**.
+
+**Fork PRs:** Secrets are usually **not** available to workflows from forks, so CI may not pull DVC data on external contributor PRs — merge from a branch on this repo, or run CI after merge on **`main`**.
+
 ## CI parity (test like production locally)
 
 GitHub Actions runs **lint → pytest + coverage (≥70%) → Pandera data tests → MLflow Production `validate_model.py`**.

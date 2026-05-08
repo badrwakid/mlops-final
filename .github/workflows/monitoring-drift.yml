@@ -37,7 +37,7 @@ jobs:
             exit 0
           fi
           if [ -z "${DVC_REMOTE_URL}" ]; then
-            echo "ERROR: monitoring artifacts missing and DVC_REMOTE_URL secret is not set."
+            echo "::error title=DVC remote missing::monitoring artifacts missing and DVC_REMOTE_URL secret is unset — see docs/github-ci-gate.md"
             exit 1
           fi
           pip install "dvc[s3]==3.51.2"
