@@ -52,7 +52,7 @@ class DriftCfg(BaseModel):
     perturb_windspeed_noise_std: float
     drift_threshold_share: float
     perturbed_features: list[str]
-    generate_synthetic_demo_report: bool = True
+    generate_synthetic_demo_report: bool = False
     synthetic_demo_report_name: str = "drift_synthetic_demo.html"
 
 

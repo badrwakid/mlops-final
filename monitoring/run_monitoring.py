@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from pathlib import Path
 
 import joblib
@@ -94,6 +95,13 @@ def main() -> None:
             json.dump(summary, f, indent=2)
         log.warning("monitoring skipped: missing artifacts: %s", ", ".join(missing))
         raise SystemExit(2)
+
+    if os.environ.get("GITHUB_ACTIONS", "").lower() == "true" and cfg.drift.generate_synthetic_demo_report:
+        log.error(
+            "generate_synthetic_demo_report must be false in CI (operational drift only); "
+            "set drift.generate_synthetic_demo_report: false in configs/params.yaml",
+        )
+        raise SystemExit(1)
 
     model = joblib.load(cfg.paths.model)
     preprocessor = joblib.load(cfg.paths.preprocessor)

@@ -50,7 +50,17 @@ def main() -> int:
         return 1
     print(f"OK: test RMSE {rmse:.6f} < rmse_threshold {ceiling:.6f}")
 
-    if os.environ.get("SKIP_MLFLOW_REGISTRY", "").lower() in {"1", "true", "yes"}:
+    skip_registry = os.environ.get("SKIP_MLFLOW_REGISTRY", "").lower() in {"1", "true", "yes"}
+    in_ci = os.environ.get("GITHUB_ACTIONS", "").lower() == "true" or os.environ.get(
+        "CI", ""
+    ).lower() in {"true", "1"}
+    if skip_registry and in_ci:
+        print(
+            "ERROR: SKIP_MLFLOW_REGISTRY is not allowed in CI (full Production registry gate required)",
+            file=sys.stderr,
+        )
+        return 1
+    if skip_registry:
         print("SKIP_MLFLOW_REGISTRY set: skipping Production model load (validation is partial)")
         return 0
 
