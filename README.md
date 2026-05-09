@@ -6,16 +6,133 @@ Predicts hourly bike rental counts using the [UCI Bike Sharing Dataset](https://
 
 ---
 
-## Quickstart (3 commands)
+## Prerequisites
+
+- **Git**
+- **Python 3.11+** (see `requirements.txt`; a virtual environment is recommended)
+- **Docker Engine + Docker Compose** (for `docker compose`)
+
+On Windows, prefer **`python -m dvc`** if the **`dvc`** command is not on your `PATH`.
+
+---
+
+## How to run (recommended order)
+
+Do these steps **in sequence** once per machine. Skip steps you have already finished (for example after a successful **`dvc pull`**, you do not need **`dvc repro`** before Docker).
+
+### Step 1 — Clone the repo
 
 ```bash
-git clone https://github.com/badrwakid/mlops-final.git && cd mlops-final
-docker compose up --build -d
+git clone https://github.com/badrwakid/mlops-final.git
+cd mlops-final
+```
+
+Keep **`main`** up to date (**`git pull`**) before **`dvc pull`** so **`dvc.lock`** matches the remote artifacts.
+
+### Step 2 — Python environment
+
+```bash
+python -m venv .venv
+```
+
+Activate it (POSIX): **`source .venv/bin/activate`** · (Windows PowerShell): **`.venv\Scripts\Activate.ps1`**.
+
+```bash
+pip install -r requirements.txt
+```
+
+### Step 3 — Restore data & trained artifacts (`model.pkl`, etc.)
+
+The API image **`COPY`**’s **`data/splits/model.pkl`**, **`preprocessor.pkl`**, **`reference.parquet`** (baseline is also in Git). You must populate those files **before** building the **`api`** service.
+
+Pick **one** path:
+
+**Path A — DagsHub (`dvc pull`)**
+
+For **you on another machine**, **TA**, or **teammates** who can **`git clone`** this repo:
+
+1. In DagsHub, open **account / developer settings** and create a **personal access token** for an account that has **read** access to the **`mlops-final`** dataset repo (**`badrwakid`** on DagsHub must invite **other users** under that repository’s access settings).
+2. **`user`** must be **that account’s DagsHub username** — not your Windows/macOS/Linux login — e.g. your own **`yourname`** even when the repo owner is **`badrwakid`**.
+3. Run (**`.dvc/config.local` only**; never commit these lines):
+
+```bash
+python -m dvc remote modify --local localremote user '<YOUR_DAGSHUB_USERNAME>'
+python -m dvc remote modify --local localremote password '<YOUR_DAGSHUB_TOKEN>'
+python -m dvc pull
+```
+
+**Path B — No remote / pull failed (same as CI)**
+
+Rebuild artifacts from **`dvc.lock`** (downloads UCI `hour.csv`, runs the full pipeline; uses **`file:./mlruns`** unless you export **`MLFLOW_TRACKING_URI`** yourself):
+
+```bash
+python scripts/bootstrap_dvc_workspace.py
+```
+
+Publishing for others (optional): on a machine with a full **`dvc repro`**, **`python -m dvc push`** uploads blobs so Path A works elsewhere.
+
+### Step 4 — Confirm files exist before Docker
+
+You should see real files with non-zero size, especially:
+
+- **`data/splits/model.pkl`**
+- **`data/splits/preprocessor.pkl`**
+- **`data/splits/reference.parquet`** (also tracked in Git on **`main`**)
+
+POSIX:
+
+```bash
+ls -l data/splits/model.pkl data/splits/preprocessor.pkl data/splits/reference.parquet
+```
+
+Windows PowerShell:
+
+```powershell
+Get-Item data\splits\model.pkl, data\splits\preprocessor.pkl, data\splits\reference.parquet | Format-Table Name, Length
+```
+
+### Step 5 — Build and start the stack
+
+From the **`mlops-final`** root:
+
+```bash
+docker compose build
+docker compose up -d
+```
+
+Compose starts **`mlflow`** → **`seed-mlflow`** (registers a Production model) → **`api`** → **`prometheus`** → **`grafana`** (exact service set may match your **`docker-compose.yml`**).
+
+Stop when finished:
+
+```bash
+docker compose down
+```
+
+Tail API logs (optional):
+
+```bash
+docker compose logs api --follow
+```
+
+### Step 6 — Smoke test
+
+```bash
 curl http://localhost:8000/health
 ```
 
-The stack starts automatically in the correct order:
-`mlflow` → `seed-mlflow` (registers Production model) → `api` → `prometheus` → `grafana`
+Open in a browser:
+
+- Dashboard + API · **http://localhost:8000**
+- MLflow · **http://localhost:5001**
+- Grafana · **http://localhost:3000** (`admin` / `admin`)
+
+### Step 7 — Optional next steps
+
+- **Operational drift checks:** `PYTHONPATH=. python -m monitoring.run_monitoring`
+- **Local CI parity:** `powershell -ExecutionPolicy Bypass -File scripts/run_full_ci_local.ps1` (Windows; see script header on other platforms)
+- **Training again (outside Docker stack):** with MLflow reachable, **`MLFLOW_TRACKING_URI=http://127.0.0.1:5001 PYTHONPATH=. python -m src.training.train`** (often after Compose is **`up`**).
+
+You only need **`python -m dvc repro`** when you change pipeline code/data and want fresh artifacts—not before every Compose run if **`dvc pull`** already restored **`model.pkl`**.
 
 ---
 
@@ -67,35 +184,21 @@ Raw Data (UCI CSV)
 
 ### 1 · Data Versioning (DVC)
 
-```bash
-dvc repro          # reproduce all pipeline stages deterministically
-dvc push           # push artifacts to DagsHub remote
-dvc pull           # restore artifacts on a fresh clone
-dvc dag            # visualise pipeline DAG
-```
-
 Remote: DagsHub (`https://dagshub.com/badrwakid/mlops-final.dvc`). See `.dvc/config`.
 
-- **Published to the DVC remote (after `dvc push`):** raw `hour.csv`, processed parquet, split parquet outputs, `preprocessor.pkl`, `model.pkl`.
-- **In Git only (not on the remote):** `data/splits/metrics.json` (`cache: false` in `dvc.yaml`).
-- **In Git for Docker / drift UX:** small `data/splits/reference.parquet` (baseline reference window; hash must match `dvc.lock`).
+- **Stored on remote after `push`:** raw `hour.csv`, processed parquet, split parquet outputs, `preprocessor.pkl`, `model.pkl`.
+- **In Git (`cache: false` or small baseline):** `data/splits/metrics.json`, `data/splits/reference.parquet`.
 
-**Fresh clone — pick one path**
+**Fresh clone:** see **Step 3** in **[How to run (recommended order)](#how-to-run-recommended-order)** (`dvc pull` vs **`bootstrap_dvc_workspace.py`**).
 
-1. **With DagsHub (share binaries with `dvc pull`):** one maintainer must have run `dvc repro` then `dvc push` so all MD5s exist upstream.
+Common commands:
 
-   ```bash
-   dvc remote modify --local localremote password <DAGSHUB_TOKEN>
-   dvc pull
-   ```
-
-2. **Without a remote (free, same as CI):**
-
-   ```bash
-   python scripts/bootstrap_dvc_workspace.py
-   ```
-
-   That downloads UCI `hour.csv` and runs `dvc repro` when `model.pkl` is missing (uses `MLFLOW_TRACKING_URI=file:./mlruns` by default).
+```bash
+python -m dvc repro           # rerun pipeline stages vs dvc.lock
+python -m dvc push            # publish blobs after repro
+python -m dvc pull             # restore on another clone (requires auth + successful prior push)
+python -m dvc dag              # show pipeline DAG
+```
 
 ### 2 · Preprocessing Pipeline
 
@@ -186,33 +289,21 @@ Grafana dashboard at http://localhost:3000 — pre-provisioned, no setup require
 | `docs/technical_report.md` | Pipeline evidence: DVC DAG, HPO results, CI screenshots |
 | `docs/experiment_log.csv` | All MLflow runs exported (parameters + metrics) |
 
-### 8 · Project Setup & Reproducibility
+### 8 · Reference
 
-```bash
-# install dependencies
-pip install -r requirements.txt
+**Install + stack order:** **[How to run (recommended order)](#how-to-run-recommended-order)**.
 
-# verify the full stack locally (matches CI)
-powershell -ExecutionPolicy Bypass -File scripts/run_full_ci_local.ps1
-```
-
-All pipeline parameters are in `configs/params.yaml`. No hardcoded values in source files. Most data and model binaries stay out of Git and are restored with DVC (`dvc pull` or `dvc repro`); exceptions are `data/splits/metrics.json` and `data/splits/reference.parquet` (see above).
+All pipeline tuning lives in **`configs/params.yaml`**. Large binaries are restored via DVC (see **[DVC Remote (DagsHub)](#dvc-remote-dagshub)**); **`metrics.json`** and **`reference.parquet`** are intentionally in Git (see **§ 1 · Data versioning (DVC)** under **Pipeline Components** below).
 
 ---
 
-## Bonus A · Docker Containerisation
+## Bonus A · Docker notes
 
-Full multi-service Docker Compose stack:
+Compose uses internal service DNS (e.g. **`mlflow:5000`**). For the full build-start-smoke sequence, use **Steps 4–6** above; shorthand:
 
 ```bash
-docker compose up --build          # start everything
-docker compose down                # stop everything
-docker compose logs api --follow   # tail API logs
+docker compose up --build -d
 ```
-
-Services: `mlflow`, `seed-mlflow` (init container), `api`, `prometheus`, `grafana`.
-
-All inter-service communication uses Docker internal networking (service names as hostnames).
 
 ## Bonus B · Pipeline Orchestration (Prefect)
 
@@ -283,18 +374,10 @@ tests/
 
 ## DVC Remote (DagsHub)
 
-The project uses DagsHub as the DVC remote. **Publishing** for teammates and CI (`dvc pull`) requires:
+| Action | Commands |
+|---|---|
+| **Publish** (so others can `pull`) | `python -m dvc repro` then `python -m dvc push` |
+| **Consume** (fresh clone; token only in `.dvc/config.local`) | See **Step 3 — Path A** |
+| **No remote blobs yet** | **Step 3 — Path B** (`bootstrap_dvc_workspace.py`) |
 
-```bash
-dvc repro    # deterministic vs dvc.lock
-dvc push     # uploads blobs referenced by the lockfile — must succeed or pull will fail elsewhere
-```
-
-**Consuming** on a fresh clone (token never committed):
-
-```bash
-dvc remote modify --local localremote password <DAGSHUB_TOKEN>
-dvc pull
-```
-
-Until a successful **`dvc push`** has populated the remote, other machines **cannot** restore large artifacts with `dvc pull` alone — use **`python scripts/bootstrap_dvc_workspace.py`** instead (UCI fetch + `dvc repro`).
+CI can **`dvc pull`** when **`DVC_REMOTE_URL`** + **`DAGSHUB_TOKEN`** are set; otherwise it mirrors Path B (`docs/github-ci-gate.md`).
