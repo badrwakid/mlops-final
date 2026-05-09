@@ -251,7 +251,7 @@ jobs:
       - name: Create placeholder artifacts for Docker build context
         run: |
           mkdir -p data/splits
-          touch data/splits/preprocessor.pkl data/splits/reference.parquet data/splits/model.pkl
+          touch data/splits/preprocessor.pkl data/splits/model.pkl
 
       - name: Build production service images
         run: docker compose build mlflow api

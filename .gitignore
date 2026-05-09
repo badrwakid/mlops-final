@@ -24,6 +24,8 @@ data/splits/*
 !data/splits/.gitkeep
 !data/splits/*.dvc
 !data/splits/metrics.json
+# Small drift baseline for API image / local docker build (must match dvc.lock).
+!data/splits/reference.parquet
 
 # Models & artifacts — managed by DVC remote (dagshub), not git
 *.pkl

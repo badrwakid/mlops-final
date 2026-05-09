@@ -1,15 +1,27 @@
 # GitHub + CI as the shared gate
 
-Large datasets and trained artifacts (**`data/raw/hour.csv`**, splits, **`model.pkl`**) are **not stored in Git** (except small JSON metrics / optional pinned pickles if your branch commits them). For **shared team storage**, use a **DVC remote** (e.g. S3): GitHub Actions runs **`dvc pull`** after rewriting `localremote` to **`DVC_REMOTE_URL`** — set that URI plus AWS credentials as repository **Secrets** (see table below). Locally **`dvc push`** after **`dvc repro`** publishes artifacts to that remote.
+Large datasets and trained artifacts (**`data/raw/hour.csv`**, most parquet splits, **`preprocessor.pkl`**, **`model.pkl`**) are **not stored in Git**. Small files **tracked in Git** on purpose:
 
-### Free CI with no cloud account (no credit card)
+- **`data/splits/metrics.json`** — `cache: false` in `dvc.yaml` so gates can read thresholds from Git.
+- **`data/splits/reference.parquet`** — small drift baseline so **`docker compose build api`** works on a clone without **`dvc pull`** (still must match **`dvc.lock`**).
 
-If you **do not** set **`DVC_REMOTE_URL`** (and no S3 keys), workflows still pass **without paid storage**:
+### DVC remote vs free bootstrap
+
+Default **human** remote in **`.dvc/config`** is DagsHub (basic auth).
+
+- **Prefer shared storage:** after **`dvc repro`**, run **`dvc push`** successfully once. Then any clone with **`DAGSHUB_TOKEN`** can **`dvc pull`**.
+- **GitHub Actions optional secrets:** **`DVC_REMOTE_URL`** must match your DVC HTTP remote (e.g. `https://dagshub.com/badrwakid/mlops-final.dvc`), plus **`DAGSHUB_TOKEN`** for `dvc pull` Basic auth (`user badrwakid` is wired in workflows). Actions rewrite `localremote` for the runner.
+
+### Free CI with no remote secrets (no credit card)
+
+If **`DVC_REMOTE_URL`** / **`DAGSHUB_TOKEN`** are **not** set, workflows match a local **`python scripts/bootstrap_dvc_workspace.py`** style flow:
 
 - **Raw data:** Actions runs **`python scripts/fetch_uci_hour_csv.py`**, which downloads the official UCI *Bike Sharing* zip and extracts **`hour.csv`** (MD5-checked against **`hour.csv.dvc`**).
-- **Splits / models needed only on some jobs:** When parquet splits are missing, Actions runs **`dvc repro`** on the runner after the fetch above. That rebuilds **`reference.parquet`**, **`production.parquet`**, **`model.pkl`**, etc. deterministically from the lockfile—no AWS/GCP/Azure signup required.
+- **Pipeline artifacts:** **`dvc repro`** on the runner (with **`MLFLOW_TRACKING_URI=file:./mlruns`**) restores **`production.parquet`**, **`model.pkl`**, etc. from the lockfile.
 
-Optional secrets remain useful so CI can **`dvc pull`** instead of retraining on every run (faster, matches a shared remote).
+Optional secrets remain useful so CI can **`dvc pull`** instead of retraining on every run.
+
+If **`DVC_REMOTE_URL`** uses **`s3://...`**, add **`AWS_*`** secrets instead of **`DAGSHUB_TOKEN`** (workflows rely on boto3-backed DVC remote for S3).
 
 Team workflow for this repo: **branch → run `scripts/run_full_ci_local.ps1` locally → open Pull Request → merge** (no required teammate approval on GitHub; use Issues if your instructor still wants planning evidence).
 
@@ -44,29 +56,27 @@ Workflows live under `.github/workflows/` (notably **`CI`** and **`Monitoring Dr
 
 | Secret | When you need it |
 |--------|------------------|
-| **`DVC_REMOTE_URL`** | Optional if you rely on **free CI bootstrap** (UCI fetch + `dvc repro`). Set when you want **`dvc pull`** from shared storage instead (e.g. **`s3://your-bucket/path/to/dvc-store`**). Same logical storage your team uses after `dvc push`. |
-| **`AWS_ACCESS_KEY_ID`** | With **`AWS_SECRET_ACCESS_KEY`** and **`AWS_DEFAULT_REGION`**, only if the remote is **S3** and you set **`DVC_REMOTE_URL`**. Use an IAM user limited to read (CI) and write (developers pushing). Never commit keys. |
-| **`AWS_SECRET_ACCESS_KEY`** | Pair with the above. |
+| **`DVC_REMOTE_URL`** | Optional when using **free CI bootstrap** (`fetch_uci_hour_csv.py` + `dvc repro`). Set to your DVC storage URL (**DagsHub** `https://dagshub.com/.../*.dvc` or **`s3://...`**). Must match whatever **`dvc push`** publishes to. |
+| **`DAGSHUB_TOKEN`** | With **`DVC_REMOTE_URL`** pointing at **DagsHub**. Workflows configure Basic auth **`user`** + this token as **`password`** (same as **`dvc remote modify --local localremote password`** locally). Never commit. |
+| **`AWS_ACCESS_KEY_ID`** | Only if **`DVC_REMOTE_URL`** is **S3**. Pair with **`AWS_SECRET_ACCESS_KEY`** and **`AWS_DEFAULT_REGION`**. |
+| **`AWS_SECRET_ACCESS_KEY`** | Pair with **`AWS_ACCESS_KEY_ID`**. |
 | **`AWS_DEFAULT_REGION`** | e.g. **`eu-west-1`** — must match the bucket region. |
 
-CLI (non-interactive file input):
+CLI examples:
 
 ```bash
+# DagsHub + pull in CI (optional; omit both to use free bootstrap)
+gh secret set DVC_REMOTE_URL -b"https://dagshub.com/badrwakid/mlops-final.dvc"
+gh secret set DAGSHUB_TOKEN -b"<token>"
+
+# S3 alternative
 gh secret set DVC_REMOTE_URL -b"s3://YOUR_BUCKET/YOUR_PREFIX"
 gh secret set AWS_ACCESS_KEY_ID -b"AKIA..."
 gh secret set AWS_SECRET_ACCESS_KEY -b"..."
 gh secret set AWS_DEFAULT_REGION -b"eu-west-1"
 ```
 
-After secrets exist, align your **local** remote once (same URL as `DVC_REMOTE_URL`):
-
-```bash
-pip install "dvc[s3]==3.51.2"
-dvc remote modify localremote url s3://YOUR_BUCKET/YOUR_PREFIX
-dvc push
-```
-
-Repeat **`dvc push`** whenever **`dvc repro`** (or targeted stages) produces updated tracked outputs so CI and teammates can **`dvc pull`** them.
+After secrets exist locally, **`dvc push`** publishes to the **same logical URL**. Repeat **`dvc push`** whenever **`dvc repro`** produces new tracked hashes so **`dvc pull`** works on other machines.
 
 ## Branch protection on `main`
 

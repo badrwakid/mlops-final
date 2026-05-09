@@ -76,7 +76,26 @@ dvc dag            # visualise pipeline DAG
 
 Remote: DagsHub (`https://dagshub.com/badrwakid/mlops-final.dvc`). See `.dvc/config`.
 
-Tracked artifacts: `data/raw/hour.csv`, `data/processed/`, `data/splits/` (preprocessor, model, splits, metrics).
+- **Published to the DVC remote (after `dvc push`):** raw `hour.csv`, processed parquet, split parquet outputs, `preprocessor.pkl`, `model.pkl`.
+- **In Git only (not on the remote):** `data/splits/metrics.json` (`cache: false` in `dvc.yaml`).
+- **In Git for Docker / drift UX:** small `data/splits/reference.parquet` (baseline reference window; hash must match `dvc.lock`).
+
+**Fresh clone — pick one path**
+
+1. **With DagsHub (share binaries with `dvc pull`):** one maintainer must have run `dvc repro` then `dvc push` so all MD5s exist upstream.
+
+   ```bash
+   dvc remote modify --local localremote password <DAGSHUB_TOKEN>
+   dvc pull
+   ```
+
+2. **Without a remote (free, same as CI):**
+
+   ```bash
+   python scripts/bootstrap_dvc_workspace.py
+   ```
+
+   That downloads UCI `hour.csv` and runs `dvc repro` when `model.pkl` is missing (uses `MLFLOW_TRACKING_URI=file:./mlruns` by default).
 
 ### 2 · Preprocessing Pipeline
 
@@ -132,7 +151,7 @@ Six-job pipeline on every push to `main`:
 lint → test (coverage ≥70%) → data-validation → model-validation → compose-validate → monitoring-validation
 ```
 
-See `.github/workflows/ci.yml`. Artifacts pulled from DagsHub via `DVC_REMOTE_URL` + `DAGSHUB_TOKEN` secrets; falls back to UCI download + `dvc repro` if secrets are absent.
+See `.github/workflows/ci.yml`. If repository secrets **`DVC_REMOTE_URL`** (same URL as `.dvc/config`, e.g. `https://dagshub.com/badrwakid/mlops-final.dvc`) and **`DAGSHUB_TOKEN`** are set, CI runs `dvc pull` for heavy artifacts. If they are absent, CI uses UCI download + `dvc repro` (same flow as `scripts/bootstrap_dvc_workspace.py`).
 
 ### 6 · Monitoring & Drift Detection
 
@@ -177,7 +196,7 @@ pip install -r requirements.txt
 powershell -ExecutionPolicy Bypass -File scripts/run_full_ci_local.ps1
 ```
 
-All pipeline parameters are in `configs/params.yaml`. No hardcoded values in source files. `.gitignore` excludes all data, model, and log files — tracked via DVC.
+All pipeline parameters are in `configs/params.yaml`. No hardcoded values in source files. Most data and model binaries stay out of Git and are restored with DVC (`dvc pull` or `dvc repro`); exceptions are `data/splits/metrics.json` and `data/splits/reference.parquet` (see above).
 
 ---
 
@@ -219,7 +238,7 @@ configs/params.yaml               # all pipeline parameters
 data/
   raw/                            # tracked by DVC (not in git)
   processed/                      # tracked by DVC
-  splits/                         # tracked by DVC (model.pkl, preprocessor.pkl, *.parquet)
+  splits/                         # mostly DVC; metrics.json + reference.parquet also in Git
 docker/
   api.Dockerfile
   mlflow.Dockerfile
@@ -264,11 +283,18 @@ tests/
 
 ## DVC Remote (DagsHub)
 
-The project uses DagsHub as the DVC remote. On a fresh clone with credentials:
+The project uses DagsHub as the DVC remote. **Publishing** for teammates and CI (`dvc pull`) requires:
+
+```bash
+dvc repro    # deterministic vs dvc.lock
+dvc push     # uploads blobs referenced by the lockfile — must succeed or pull will fail elsewhere
+```
+
+**Consuming** on a fresh clone (token never committed):
 
 ```bash
 dvc remote modify --local localremote password <DAGSHUB_TOKEN>
 dvc pull
 ```
 
-Token is stored locally only (`~/.dvc/config.local`) — never committed to git.
+Until a successful **`dvc push`** has populated the remote, other machines **cannot** restore large artifacts with `dvc pull` alone — use **`python scripts/bootstrap_dvc_workspace.py`** instead (UCI fetch + `dvc repro`).
