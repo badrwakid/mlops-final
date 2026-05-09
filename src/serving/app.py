@@ -17,12 +17,12 @@ import mlflow.sklearn
 import numpy as np
 import pandas as pd
 from fastapi import FastAPI, HTTPException, Request, Response
-from sklearn.ensemble import GradientBoostingRegressor
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTextResponse
 from mlflow.exceptions import MlflowException
 from mlflow.tracking import MlflowClient
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
+from sklearn.ensemble import GradientBoostingRegressor
 
 from src.config import Config, load_config
 from src.drift_report import run_and_log
