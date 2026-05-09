@@ -17,6 +17,7 @@ import mlflow.sklearn
 import numpy as np
 import pandas as pd
 from fastapi import FastAPI, HTTPException, Request, Response
+from sklearn.ensemble import GradientBoostingRegressor
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTextResponse
 from mlflow.exceptions import MlflowException
@@ -229,13 +230,47 @@ def _to_dataframe(records: list[BikeRecord]) -> pd.DataFrame:
     return pd.DataFrame([record.model_dump() for record in records])[_feature_columns(cfg)]
 
 
+def _confidence_from_forest_disagreement(model: Any, features: np.ndarray, predictions: np.ndarray) -> np.ndarray | None:
+    """Per-row score from spread of individual tree predictions (RF / ExtraTrees only).
+
+    Classic ``GradientBoostingRegressor.estimators_`` are weak learners on pseudo-residuals,
+    not comparable full-target predictions — skip those.
+    """
+    if not hasattr(model, "estimators_") or isinstance(model, GradientBoostingRegressor):
+        return None
+    tree_predictions = np.asarray([est.predict(features) for est in model.estimators_])
+    std = tree_predictions.std(axis=0)
+    scale = np.abs(predictions) + 1e-9
+    return 1.0 / (1.0 + (std / scale))
+
+
+def _confidence_from_hgbr_stages(model: Any, features: np.ndarray, predictions: np.ndarray) -> np.ndarray | None:
+    """HistGradientBoostingRegressor has no ``estimators_``; use spread across ``staged_predict``."""
+    staged = getattr(model, "staged_predict", None)
+    if staged is None:
+        return None
+    n_iter = getattr(model, "n_iter_", None)
+    if not n_iter or n_iter < 2:
+        return None
+    rows: list[np.ndarray] = []
+    step = max(1, n_iter // 24)
+    for i, y_st in enumerate(staged(features)):
+        if i % step == 0 or i == n_iter - 1:
+            rows.append(np.asarray(y_st, dtype=float))
+    if len(rows) < 2:
+        return None
+    stacked = np.asarray(rows)
+    std = stacked.std(axis=0)
+    scale = np.abs(predictions) + 1e-9
+    return 1.0 / (1.0 + (std / scale))
+
+
 def _predict_with_confidence(model: Any, features: np.ndarray) -> list[BatchPredictionItem]:
     predictions = np.asarray(model.predict(features), dtype=float)
-    if hasattr(model, "estimators_"):
-        tree_predictions = np.asarray([tree.predict(features) for tree in model.estimators_])
-        std = tree_predictions.std(axis=0)
-        confidence = 1.0 / (1.0 + (std / (np.abs(predictions) + 1e-9)))
-    else:
+    confidence = _confidence_from_forest_disagreement(model, features, predictions)
+    if confidence is None:
+        confidence = _confidence_from_hgbr_stages(model, features, predictions)
+    if confidence is None:
         confidence = np.ones_like(predictions, dtype=float)
 
     return [
